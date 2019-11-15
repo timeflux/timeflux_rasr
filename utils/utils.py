@@ -1,3 +1,5 @@
+"""Copyright: Raph B-L < raphaelle@timeflux.io >, 2019"""
+
 from warnings import warn
 
 import mne
@@ -124,6 +126,7 @@ def estimate_rate(data):
 
 def pandas_to_mne(data, rate, events=None, montage_kind='standard_1005', unit_factor=1e-6, bad_ch=[]):
     ''' Convert a pandas Dataframe into mne raw object
+
     Parameters
     ----------
     data: Dataframe with index=timestamps, columns=eeg channels
