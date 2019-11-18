@@ -18,6 +18,7 @@ dependencies:
     - seaborn
     - jupyter
     - pyxdf
+    - pyriemann
     # Pip dependencies
     - pip
     - pip:

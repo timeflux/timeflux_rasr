@@ -5,6 +5,8 @@ from warnings import warn
 import mne
 import numpy as np
 import pandas as pd
+from numpy.lib import stride_tricks
+
 
 
 def indices(list, filtr=lambda x: bool(x)):
@@ -193,7 +195,6 @@ def float_index_to_time_index(df, inplace=False):
     return df
 
 
-from numpy.lib import stride_tricks
 
 
 def epoch(a, size, interval, axis=-1):
