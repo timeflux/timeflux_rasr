@@ -8,10 +8,9 @@ import pandas as pd
 from numpy.lib import stride_tricks
 
 
-
-def indices(list, filtr=lambda x: bool(x)):
+def indices(list_, filtr=lambda x: bool(x)):
     # return indices of the element that met the condition defined in filtr
-    return [i for i, x in enumerate(list) if filtr(x)]
+    return [i for i, x in enumerate(list_) if filtr(x)]
 
 
 def get_channel_names(stream):
@@ -131,11 +130,13 @@ def pandas_to_mne(data, rate, events=None, montage_kind='standard_1005', unit_fa
 
     Parameters
     ----------
-    data: Dataframe with index=timestamps, columns=eeg channels
-    rate: Sampling rate
-    events: array, shape = (n_events, 3) with labels on the third axis.
-    unit_factor: unit factor to apply to get Voltage
-    bad_ch: list of channels to reject
+    data : Dataframe with index=timestamps, columns=eeg channels
+    rate : Sampling rate
+    events : array, shape = (n_events, 3) with labels on the third axis.
+    unit_factor : unit factor to apply to get Voltage
+    bad_ch : list of channels to reject
+    montage_kind : str (default: 'standard_1005')
+        EEG montage name
 
     Returns
     -------
