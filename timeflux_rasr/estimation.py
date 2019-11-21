@@ -5,6 +5,9 @@ from pyriemann.utils.covariance import covariances
 from scipy.linalg import (sqrtm, eigh)
 import numpy as np
 from utils.utils import epoch
+from utils.utils import get_length as len
+from scipy.special import gammaincinv
+from scipy.special import gamma
 
 class RASR(BaseEstimator, TransformerMixin):
     """ RASR
@@ -210,14 +213,124 @@ def _rms(epochs):
     RMS = np.zeros((Nt, Ne))
 
     for i in range(Nt):
-        RMS[i, :] = np.sqrt(np.mean(epochs[i, :, :]**2,axis=0))
+        RMS[i, :] = np.sqrt(np.mean(epochs[i, :, :]**2, axis=0))
 
     return RMS
 
 def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
-                          quants=np.array([0.022, 0.6]) ,step_sizes=np.array([0.01, 0.01]), beta=np.arange(1.7,3.51,0.15)):
+                          quantile_range=np.array([0.022, 0.6]), step_sizes=np.array([0.01, 0.01]),
+                          beta_range=np.arange(1.7, 3.51, 0.15)):
+    """ Estimate the mean and standard deviation of clean EEG from contaminated data
+
+    This function estimates the mean and standard deviation of clean EEG from a sample of amplitude
+    values (that have preferably been computed over short windows) that may include a large fraction
+    of contaminated samples. The clean EEG is assumed to represent a generalized Gaussian component in
+    a mixture with near-arbitrary artifact components. By default, at least 25% (min_clean_fraction) of
+    the data must be clean EEG, and the rest can be contaminated. No more than 10%
+    (max_dropout_fraction) of the data is allowed to come from contamination that cause lower-than-EEG
+    amplitudes (e.g., sensor unplugged). There are no restrictions on artifacts causing
+    larger-than-EEG amplitudes, i.e., virtually anything is handled (with the exception of a very
+    unlikely type of distribution that combines with the clean EEG samples into a larger symmetric
+    generalized Gaussian peak and thereby "fools" the estimator). The default parameters should be
+    fine for a wide range of settings but may be adapted to accommodate special circumstances.
+
+    The method works by fitting a truncated generalized Gaussian whose parameters are constrained by
+    min_clean_fraction, max_dropout_fraction, quantile_range, and beta_range. The alpha and beta parameters
+    of the gen. Gaussian are also returned. The fit is performed by a grid search that always finds a
+    close-to-optimal solution if the above assumptions are fulfilled.
+
+    Parameters
+    ----------
+    X : ndarray, shape (n_samples,)
+        vector of amplitude values of EEG, possible containing artifacts
+        (coming from single samples or windowed averages)
+
+    min_clean_fraction : float (default: 0.25)
+        Minimum fraction of values in X that needs to be clean
+
+    max_dropout_fraction : float (default: 0.1)
+        Maximum fraction of values in X that can be subject to
+        signal dropouts (e.g., sensor unplugged)
+
+    quantile_range : ndarray, shape (2,) (default: [0.022 0.6])
+        Quantile range [lower,upper] of the truncated generalized Gaussian distribution
+        that shall be fit to the EEG contents
+
+    step_sizes : ndarray, shape (2,) (default: [0.01 0.01])
+        Step size of the grid search; the first value is the stepping of the lower bound
+        (which essentially steps over any dropout samples), and the second value
+        is the stepping over possible scales (i.e., clean-data quantiles)
+
+    beta_range : ndarray, shape (n_points,) (default: np.arange(1.70, 3.51, 0.15))
+        Range that the clean EEG distribution's shape parameter beta may take
+
+    Returns
+    -------
+    Mu : float
+        estimated mean of the clean EEG distribution
+
+    Sigma : float
+        estimated standard deviation of the clean EEG distribution
+
+    Alpha : float
+        estimated scale parameter of the generalized Gaussian clean EEG distribution (optional)
+
+    Beta : float
+        estimated shape parameter of the generalized Gaussian clean EEG distribution (optional)
+
+    """
     # TODO: implement function
     print("DO FUNCTION")
+
+    # sanity checks
+    if len(quantile_range) > 2:
+        raise ValueError('quantile_range needs to be a 2-elements vector.')
+    if any(quantile_range>7) | any(quantile_range<0):
+        raise ValueError('Unreasonable quantile_range.')
+    if any(step_sizes < 0.0001) | any(step_sizes > 0.1):
+        raise ValueError('Unreasonable step sizes.')
+    if any(beta_range >= 7) | any(beta_range <= 1):
+        raise ValueError('Unreasonable shape range.')
+
+    # sort data for quantiles
+    X = np.sort(X)
+    n = len(X)
+
+    # compute z bounds for the truncated standard generalized Gaussian pdf and pdf rescaler for each beta
+    zbounds = []
+    rescale = []
+    for k, b in enumerate(beta_range):
+        zbounds[k] = np.sign(quantile_range-1/2) * \
+                     gammaincinv(
+                         np.sign(quantile_range-1/2) * (2 * quantile_range-1),
+                         1/b ** (1/b)
+                     )
+        rescale[k] = b / (2 * gamma(1/b))
+
+    # determine the quantile-dependent limits for the grid search
+    lower_min = min(quantile_range)                   # we can generally skip the tail below the lower quantile
+    max_width = round(n * np.diff(quantile_range)[0]) # maximum width in samples is the fit interval if all data is clean
+    min_width = round(min_clean_fraction * max_width) # minimum width in samples of the fit interval, as fraction of data
+
+    # get matrix of shifted data ranges
+    indx = np.round(n * np.arange(lower_min, lower_min + max_dropout_fraction), step_sizes[0])  # epochs start
+    range = np.arange(0, max_width)        # interval indices
+    Xs = np.zeros((len(range)), len(indx))  # preload entire quantile interval matrix
+    for k, i in enumerate(indx):
+        Xs[:, k] = X(i + range)  # build each quantile interval
+
+    Xs = Xs - Xs[0,:]  # substract baseline value for each interval (starting at 0)
+
+
+    # gridsearch to find optimal fitting coefficient based on given parameters
+
+    opt_val = float("inf")
+
+    for m in round(np.arange(min_width, max_width, round(step_sizes[0] * n))): #gridsearch for different quantile interval
+        # scale and bin the data in the intervals
+    nbins = round( 3 * np.log2(1 + m/2) )
+    H = X[range(m),:] * nbins / X[m-1,:]
+    logq = np.log(np.histogram(H,nbins) + 0.01)
 
     return np.zeros((4,))
 

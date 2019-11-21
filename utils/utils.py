@@ -238,3 +238,25 @@ def epoch(a, size, interval, axis=-1):
     new_strides = (a.strides[axis] * interval,) + a.strides
 
     return stride_tricks.as_strided(a, new_shape, new_strides)
+
+def get_length(x):
+    """ Return the length of any list or ndarray and handdle multiple type
+
+    Parameters
+    ----------
+    x: float, int, list, ndarray
+        numerical structure of any type
+    Returns
+    -------
+    length: int
+        the number of elements of x
+    """
+    length_ = None
+    if isinstance(x, (np.ndarray,np.generic)):
+        length_ = x.size
+    elif isinstance(x, list):
+        length_ = len(x)
+    else:
+        raise ValueError("No recognized type, please add " + str(type(x)) + " to this function")
+
+    return length_
