@@ -328,9 +328,10 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
 
     for m in round(np.arange(min_width, max_width, round(step_sizes[0] * n))): #gridsearch for different quantile interval
         # scale and bin the data in the intervals
-    nbins = round( 3 * np.log2(1 + m/2) )
-    H = X[range(m),:] * nbins / X[m-1,:]
-    logq = np.log(np.histogram(H,nbins) + 0.01)
+        nbins = round( 3 * np.log2(1 + m/2) )
+        H = X[range(m),:] * nbins / X[m-1,:]
+        logq = np.log(np.histogram(H,nbins) + 0.01)
+    # TODO: FINISH DO GRIDSEARCH
 
     return np.zeros((4,))
 
