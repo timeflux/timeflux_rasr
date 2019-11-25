@@ -254,9 +254,10 @@ def get_length(x):
     length_ = None
     if isinstance(x, (np.ndarray,np.generic)):
         length_ = x.size
-    elif isinstance(x, list):
-        length_ = len(x)
     else:
-        raise ValueError("No recognized type, please add " + str(type(x)) + " to this function")
+        try:
+            length_ = len(x)
+        except:
+            raise ValueError("No recognized type, please add " + str(type(x)) + " to this function")
 
     return length_
