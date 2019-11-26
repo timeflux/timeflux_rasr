@@ -350,34 +350,72 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
     print(lower_min)
     print(max_dropout_fraction_n)
     print(step_sizes_n)
-    indx = np.arange(lower_min, lower_min + max_dropout_fraction_n, step_sizes_n[0])  # epochs start
+    indx = np.arange(lower_min, lower_min + max_dropout_fraction_n + 1e-15, step_sizes_n[0]).astype(int)  # epochs start
     print(indx)
-    range = np.arange(0, max_width)  # interval indices
-    print(range)
+    range_ind = np.arange(0, max_width)  # interval indices
+    print(range_ind)
     Xs = np.zeros((max_width, get_length(indx)))  # preload entire quantile interval matrix
     print(Xs.shape)
     for k, i in enumerate(indx):
-        Xs[:, k] = X[i + range]  # build each quantile interval
+        Xs[:, k] = X[i + range_ind]  # build each quantile interval
 
-    Xs = Xs - Xs[0, :]  # substract baseline value for each interval (starting at 0)
+    X1 = Xs[0, :]
+    Xs = Xs - X1  # substract baseline value for each interval (starting at 0)
 
     # gridsearch to find optimal fitting coefficient based on given parameters
 
     opt_val = float("inf")
-    gridsearch_val = np.arange(min_width, max_width, step_sizes_n[0])
+    gridsearch_val = np.arange(min_width, max_width + 1e-15, step_sizes_n[0]).astype(int)
     print(gridsearch_val)
     for m in gridsearch_val:  # gridsearch for different quantile interval
         # scale and bin the data in the intervals
         print(m)
         print(m.shape)
 
-        nbins = round(3 * np.log2(1 + m / 2))  # scale interval
-        H = X[range(m), :] * nbins / X[m - 1, :]  # scale data bins
-        logq = np.log(np.histogram(H, np.append(nbins, np.inf)) + 0.01)  # return bincounts in intervals
+        nbins = int(round(3 * np.log2(1 + m / 2)))  # scale interval
+        print(nbins)
+        H = Xs[range(m), :] * nbins / Xs[m - 1, :]  # scale data bins
+        print("H shape")
+        print(H.shape)
+        binscounts = np.zeros((nbins, H.shape[1]))   # init bincounts
+        for k in range(H.shape[1]):
+            binscounts[:, k], _ = np.histogram(H[:,k], nbins)
 
-    # TODO: FINISH DO GRIDSEARCH
+        print(binscounts.shape)
+        print(binscounts)
+        logq = np.log(binscounts + 0.01)  # return log(bincounts) in intervals
 
-    return np.zeros((4,))
+        # for each shape value...
+        for k, beta in enumerate(beta_range):
+            bounds = zbounds[k];
+
+            # evaluate truncated generalized Gaussian pdf at bin centers
+            x = bounds[0] + np.linspace(0.5, (nbins-0.5), num=nbins) / nbins * np.diff(bounds)[0];
+            p = np.exp(-np.abs(x) ** beta) * rescale[k];
+            p = p / np.sum(p);
+
+            # calc KL divergences for the specific interval
+            kl = np.sum(p * (np.log(p) - logq)) + np.log(m)
+            # TODO: check matlab behaviour of KLdiv and comapre
+
+            # update optimal parameters
+            [min_val, idx] = min(kl)
+            if min_val < opt_val:
+                opt_val = min_val
+                opt_beta = beta
+                opt_bounds = bounds
+                opt_lu = [X1[idx], X1[idx] + X[m, idx]]
+
+
+    # recover distribution parameters at optimum
+    alpha = (opt_lu[1] - opt_lu[0]) / np.diff(opt_bounds)[0]
+    mu = opt_lu[0] - opt_bounds[0] * alpha
+    beta = opt_beta
+
+    # calculate the distribution's standard deviation from alpha and beta
+    sig = np.sqrt((alpha ^ 2) * gamma(3 / beta) / gamma(1 / beta))
+
+    return mu, sig, alpha, beta
 
 
 if __name__ == '__main__':
@@ -388,8 +426,8 @@ if __name__ == '__main__':
     import time
 
     C = 4
-    S = 100000
-    srate = 512
+    S = int(1e5)
+    srate = 128
     window_len = int(round(srate * 0.5))
     window_overlap = 0.66
 
