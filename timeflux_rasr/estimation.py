@@ -317,7 +317,7 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
         raise ValueError('Unreasonable shape range.')
 
     # sort data for quantiles
-    print(X.shape)
+    # print(X.shape)
     X = np.sort(X)
     n = get_length(X)
 
@@ -341,21 +341,21 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
     max_width = int(round(n * np.diff(quantile_range)[0]))
     # minimum width in samples of the fit interval, as fraction of data
     min_width = int(round(min_clean_fraction * n * np.diff(quantile_range)[0]))  #
-    print(n)
-    print(max_dropout_fraction)
+    # print(n)
+    # print(max_dropout_fraction)
     max_dropout_fraction_n = int(round(max_dropout_fraction * n))
     step_sizes_n = np.round(step_sizes * n).astype(int)
 
     # get matrix of shifted data ranges
-    print(lower_min)
-    print(max_dropout_fraction_n)
-    print(step_sizes_n)
+    # print(lower_min)
+    # print(max_dropout_fraction_n)
+    # print(step_sizes_n)
     indx = np.arange(lower_min, lower_min + max_dropout_fraction_n + 1e-15, step_sizes_n[0]).astype(int)  # epochs start
-    print(indx)
+    # print(indx)
     range_ind = np.arange(0, max_width)  # interval indices
-    print(range_ind)
+    # print(range_ind)
     Xs = np.zeros((max_width, get_length(indx)))  # preload entire quantile interval matrix
-    print(Xs.shape)
+    # print(Xs.shape)
     for k, i in enumerate(indx):
         Xs[:, k] = X[i + range_ind]  # build each quantile interval
 
@@ -366,23 +366,23 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
 
     opt_val = float("inf")
     gridsearch_val = np.arange(min_width, max_width + 1e-15, step_sizes_n[0]).astype(int)
-    print(gridsearch_val)
+    # print(gridsearch_val)
     for m in gridsearch_val:  # gridsearch for different quantile interval
         # scale and bin the data in the intervals
-        print(m)
-        print(m.shape)
+        # print(m)
+        # print(m.shape)
 
         nbins = int(round(3 * np.log2(1 + m / 2)))  # scale interval
-        print(nbins)
+        # print(nbins)
         H = Xs[range(m), :] * nbins / Xs[m - 1, :]  # scale data bins
-        print("H shape")
-        print(H.shape)
+        # print("H shape")
+        # print(H.shape)
         binscounts = np.zeros((nbins, H.shape[1]))   # init bincounts
         for k in range(H.shape[1]):
             binscounts[:, k], _ = np.histogram(H[:,k], nbins)
 
-        print(binscounts.shape)
-        print(binscounts)
+        # print(binscounts.shape)
+        # print(binscounts)
         logq = np.log(binscounts + 0.01)  # return log(bincounts) in intervals
 
         # for each shape value...
@@ -395,16 +395,16 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
             p = p / np.sum(p);
 
             # calc KL divergences for the specific interval
-            kl = np.sum(p * (np.log(p) - logq)) + np.log(m)
-            # TODO: check matlab behaviour of KLdiv and comapre
+            kl = np.sum(p * (np.log(p) - np.transpose(logq)),axis=1) + np.log(m)
+            # TODO: check matlab behaviour of KLdiv and compare
 
             # update optimal parameters
-            [min_val, idx] = min(kl)
-            if min_val < opt_val:
-                opt_val = min_val
+            idx = np.argmin(kl)
+            if kl[idx] < opt_val:
+                opt_val = kl[idx]
                 opt_beta = beta
                 opt_bounds = bounds
-                opt_lu = [X1[idx], X1[idx] + X[m, idx]]
+                opt_lu = [X1[idx], X1[idx] + Xs[m, idx]]
 
 
     # recover distribution parameters at optimum
@@ -413,14 +413,14 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
     beta = opt_beta
 
     # calculate the distribution's standard deviation from alpha and beta
-    sig = np.sqrt((alpha ^ 2) * gamma(3 / beta) / gamma(1 / beta))
+    sig = np.sqrt((alpha ** 2) * gamma(3 / beta) / gamma(1 / beta))
 
     return mu, sig, alpha, beta
 
 
 if __name__ == '__main__':
-    doSequential = False
-    doTest = True
+    doSequential = True
+    doTest = False
 
     print("TEST rASR: prepare data")
     import time
@@ -463,8 +463,14 @@ if __name__ == '__main__':
 
         epochs_sliding = epoch(Xf, window_len, int(window_len * window_overlap), axis=0)
 
-        RMS = _rms(epochs_sliding)
+        rms_sliding = _rms(epochs_sliding)
         print('Elapsed for ...+RMS: %.6f ms' % ((time.time() - t) * 1000))
+
+        dist_params = np.zeros((C, 4))  # mu, sig, alpha, beta parameters of estimated distribution
+
+        for c in range(C):
+            dist_params[c, :] = _fit_eeg_distribution(rms_sliding[:, c])
+        print('Elapsed for ...+eeg_fit: %.6f ms' % ((time.time() - t) * 1000))
 
     if doTest:
         # fit test
