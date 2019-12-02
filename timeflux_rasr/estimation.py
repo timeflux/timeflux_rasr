@@ -53,6 +53,10 @@ class RASR(BaseEstimator, TransformerMixin):
     min_clean_fraction :
         Minimum fraction of windows that need to be clean, used for threshold
         estimation. Default: 0.25
+    max_dimension : Maximum dimensionality of artifacts to remove. Up to this many dimensions (or up
+        to this fraction of dimensions) can be removed for a given data segment. If the
+        algorithm needs to tolerate extreme artifacts a higher value than the default
+        may be used (the maximum fraction is 1.0). Default 0.66
 
     Attributes
     ----------
@@ -62,11 +66,15 @@ class RASR(BaseEstimator, TransformerMixin):
     threshold_ : ndarray, shape(n_chan,)
         Threshold operator used to find the subspace dimension such as:
         .. math:: threshold_ = T: X_{clean} = m ( V^T_{clean} M )^+ V^T X
+    mean_cov_ : ndarray, shape(n_chan, n_chan)
+        The current geometric mean of the two last epochs (used for online_transform only)
+        For transform function, the mean_cov is re-initialized at each call of transform therefore.
+
 
     """
 
     def __init__(self, srate=128, estimator='scm', metric='euclid', n_jobs=1, window_len=0.5,
-                 window_overlap=0.66, blocksize=None, rejection_cutoff=5):
+                 window_overlap=0.66, blocksize=None, rejection_cutoff=5, max_dimension=0.66):
         """Init."""
         # TODO:
 
@@ -74,6 +82,7 @@ class RASR(BaseEstimator, TransformerMixin):
         self.window_len = window_len
         self.window_overlap = window_overlap
         self.srate = srate
+        self.max_dimension = max_dimension
 
         if blocksize is None:
             self.blocksize = int(round(self.srate * 0.5))  # 500 ms of signal
@@ -109,7 +118,7 @@ class RASR(BaseEstimator, TransformerMixin):
         Parameters
         ----------
         X : ndarray, shape (n_trials,  n_samples, n_channels)
-            Training data.
+            Training data, already filtered.
         y : ndarray, shape (n_trials,) | None, optional
             labels corresponding to each trial, not used (mentioned for sklearn comp)
 
@@ -118,9 +127,8 @@ class RASR(BaseEstimator, TransformerMixin):
         self : RASR instance.
             the fitted RASR estimator.
         """
-        # TODO: 2D array for sklearn compatibility?
 
-
+        # TODO: 2D array for sklearn compatibility? (see below)
         if (X.shape[0] > 1) and (len(X.shape) < 3):
             print("WARNING: RASR.fit(): support only ONE large chunk of data as input")
             print("WARNING: RASR.fit(): X.shape should be (1, Ns, Ne)")
@@ -140,7 +148,7 @@ class RASR(BaseEstimator, TransformerMixin):
             # TODO: add condition where data X.shape is (Nt, Ns * Ne) but will require additional Ne parameter
             raise ValueError("X.shape should be (1, Ns, Ne) or (Ns, Ne)")
 
-        assert(Ne<Ns, "number of sample should be higher than number of electrodes, and check than \n"
+        assert(Ne < Ns, "number of samples should be higher than number of electrodes, check than \n"
                       "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) ")
         # epoching
         print("epoching")
@@ -165,22 +173,16 @@ class RASR(BaseEstimator, TransformerMixin):
 
         self.mixing_ = sqrtm(covmean)  # estimate matrix matrix
 
-        # TODO: implement manifold-aware PCA (rASR) and standard PCA (ASR)
+        # TODO: implement both manifold-aware PCA (rASR) and standard PCA (ASR)
         evals, evecs = eigh(self.mixing_)  # compute PCA
         indx = np.argsort(evals)  # sort in ascending
         evecs = evecs[:, indx]
         filtered_x = X.dot(evecs)  # apply PCA
-        print("filtered_x")
-        print(filtered_x.shape)
 
         # RMS on sliding window
         window_samples = int(round(self.window_len * self.srate))
-        epochs_sliding = epoch(filtered_x, window_samples, int(window_samples * window_overlap), axis=0)
+        epochs_sliding = epoch(filtered_x, window_samples, int(window_samples * self.window_overlap), axis=0)
         rms_sliding = _rms(epochs_sliding)
-        print("epochs shape")
-        print(epochs_sliding.shape)
-        print(rms_sliding.shape)
-        # TODO: implement distribution fitting
 
         dist_params = np.zeros((Ne, 4))  # mu, sig, alpha, beta parameters of estimated distribution
 
@@ -198,27 +200,50 @@ class RASR(BaseEstimator, TransformerMixin):
         Parameters
         ----------
         X : ndarray, shape (n_trials, n_samples, n_channels)
-            Data to clean
+            Data to clean, already filtered
         Returns
         -------
         X : ndarray, shape (n_trials, n_samples, n_channels)
             Cleaned data
         """
-        # TODO; implement that
+
+        Nt, Ns, Ne = X.shape
+        assert (Ne < Ns, "number of samples should be higher than number of electrodes, check than \n"
+                         "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) ")
+
+        covmats = covariances(np.swapaxes(epochs, 1, 2), estimator=self.estimator)  # (n_trials, n_channels, n_times)
+
+        # TODO: update the mean covariance (required for online update) only in partial_fit ?
+
+        for k in range(Nt):
+
+            # TODO: HAVE BOTH euclidian PCA and Riemannian PCA (PGA) using pymanopt
+            evals, evecs = eigh(covmats[k,:])  # compute PCA
+            # TODO: comment in matlab "use eigenvalues in descending order" but actually is doing in ascending
+            indx = np.argsort(evals)  # sort in ascending
+            evecs = evecs[:, indx]
+
+            keep = evals[indx] < sum((self.threshod_ * evecs) ** 2) | \
+                   (np.arrange(Ne) < (Ne * (1 - self.max_dimension)))
+
+            keep = np.expand_dims(keep, 0)   # for element wise multiplication that follows
+
+          #  R =  self.mixing_.dot(np.linalg.pinv( evecs.transpose().dot(self.mixing_) )).dot( * )evecs.transpose())
+
         return X
 
     def fit_transform(self, X, y=None):
-        """Estimate rASR and clean signal
+        """
         Parameters
         ----------
-        X : ndarray, shape (n_trials, n_channels, n_trials)
+        X : ndarray, shape (n_trials,  n_samples, n_channels)
             Training data.
         y : ndarray, shape (n_trials,) | None, optional
-            labels corresponding to each trial, not used
+            labels corresponding to each trial, not used (mentioned for sklearn comp)
         Returns
         -------
-        X : ndarray, shape (n_trials, n_good_channels, n_times)
-            Cleaned data.
+        X : ndarray, shape (n_trials, n_samples, n_channels)
+            Cleaned data
         """
         self.fit(X, y)
         return self.transform(X)
