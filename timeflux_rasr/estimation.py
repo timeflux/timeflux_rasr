@@ -4,8 +4,7 @@ from pyriemann.utils.mean import (mean_covariance, _check_mean_method)
 from pyriemann.utils.covariance import covariances
 from scipy.linalg import (sqrtm, eigh)
 import numpy as np
-from utils.utils import epoch
-from utils.utils import get_length
+from utils.utils import epoch, get_length, geometric_median
 from scipy.special import gammaincinv
 from scipy.special import gamma
 
@@ -109,7 +108,7 @@ class RASR(BaseEstimator, TransformerMixin):
         """
         Parameters
         ----------
-        X : ndarray, shape (n_trials, n_channels, n_samples)
+        X : ndarray, shape (n_trials,  n_samples, n_channels)
             Training data.
         y : ndarray, shape (n_trials,) | None, optional
             labels corresponding to each trial, not used (mentioned for sklearn comp)
@@ -121,6 +120,7 @@ class RASR(BaseEstimator, TransformerMixin):
         """
         # TODO: 2D array for sklearn compatibility?
 
+
         if (X.shape[0] > 1) and (len(X.shape) < 3):
             print("WARNING: RASR.fit(): support only ONE large chunk of data as input")
             print("WARNING: RASR.fit(): X.shape should be (1, Ns, Ne)")
@@ -128,29 +128,40 @@ class RASR(BaseEstimator, TransformerMixin):
             Nt = 1
             Ns, Ne = X.shape  # 2D array (but loosing first dim for trials, not sklearn-friendly)
 
-        elif (X.shape[0] == 1) and (len(X.shape) == 3):
+        elif len(X.shape) == 3:
+            # concatenate all epochs
             Nt, Ns, Ne = X.shape  # 3D array (not fully sklearn-compatible). First dim should always be trials.
-            X = X[0, :]
+            X = X.reshape((X.shape[1] * X.shape[0], X.shape[2]))
+            if Nt>1:
+                print("WARNING: RASR.fit(): concatenating all epochs. \n"
+                      "WARNING: RASR.fit(): it may cause issues if overlapping")
+
         else:
             # TODO: add condition where data X.shape is (Nt, Ns * Ne) but will require additional Ne parameter
             raise ValueError("X.shape should be (1, Ns, Ne) or (Ns, Ne)")
 
+        assert(Ne<Ns, "number of sample should be higher than number of electrodes, and check than \n"
+                      "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) ")
         # epoching
         print("epoching")
-        print(self.blocksize)
+        # print(self.blocksize)
         epochs = epoch(X, self.blocksize, self.blocksize, axis=0)
-        epochs = np.swapaxes(epochs, 1, 2)  # (n_trials, n_channels, n_times)
-
-        print(X.shape)
-        print(epochs.shape)
 
         # estimate covariances matrices
-        covmats = covariances(epochs, estimator=self.estimator)
-        print(covmats.shape)
+        covmats = covariances(np.swapaxes(epochs, 1, 2), estimator=self.estimator)  # (n_trials, n_channels, n_times)
 
-        # TODO: implement geometric median instead of geometric mean (robust to bad epochs) and euclidian median (ASR standard)
-        print("covmean")
-        covmean = mean_covariance(covmats, metric=self.metric_mean)
+        # geometric median (maybe not best with double reshape) but implement as is in matlab
+        # NOTE: while the term geometric median is used, it is NOT riemannian median but euclidian median, i.e.
+        # it might be suboptimal for Symmetric Positive Definite matrices.
+        print("geometric median")
+        # covmean = mean_covariance(covmats, metric=self.metric_mean)
+        covmean = np.reshape(geometric_median(
+            np.reshape(covmats,
+                       (covmats.shape[0], covmats.shape[1] * covmats.shape[2])
+                       )
+        ), (covmats.shape[1], covmats.shape[2])
+        )
+
 
         self.mixing_ = sqrtm(covmean)  # estimate matrix matrix
 
@@ -164,13 +175,10 @@ class RASR(BaseEstimator, TransformerMixin):
 
         # RMS on sliding window
         window_samples = int(round(self.window_len * self.srate))
-        print(window_samples)
         epochs_sliding = epoch(filtered_x, window_samples, int(window_samples * window_overlap), axis=0)
-        epochs = np.swapaxes(epochs, 1, 2)  # (n_trials, n_channels, n_times)
-        print("epochs_sliding")
-        print(epochs_sliding.shape)
         rms_sliding = _rms(epochs_sliding)
-        print("rms_sliding")
+        print("epochs shape")
+        print(epochs_sliding.shape)
         print(rms_sliding.shape)
         # TODO: implement distribution fitting
 
@@ -189,12 +197,12 @@ class RASR(BaseEstimator, TransformerMixin):
         """Clean signal
         Parameters
         ----------
-        X : ndarray, shape (n_trials, n_channels, n_trials)
-            Training data.
+        X : ndarray, shape (n_trials, n_samples, n_channels)
+            Data to clean
         Returns
         -------
-        X : ndarray, shape (n_trials, n_good_channels, n_trials)
-            The data without flat channels.
+        X : ndarray, shape (n_trials, n_samples, n_channels)
+            Cleaned data
         """
         # TODO; implement that
         return X
@@ -301,8 +309,6 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
         estimated shape parameter of the generalized Gaussian clean EEG distribution (optional)
 
     """
-    # TODO: implement function
-    print("DO FUNCTION")
 
     # sanity checks
     if len(X.shape) > 1:
@@ -341,21 +347,14 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
     max_width = int(round(n * np.diff(quantile_range)[0]))
     # minimum width in samples of the fit interval, as fraction of data
     min_width = int(round(min_clean_fraction * n * np.diff(quantile_range)[0]))  #
-    # print(n)
-    # print(max_dropout_fraction)
     max_dropout_fraction_n = int(round(max_dropout_fraction * n))
     step_sizes_n = np.round(step_sizes * n).astype(int)
 
     # get matrix of shifted data ranges
-    # print(lower_min)
-    # print(max_dropout_fraction_n)
-    # print(step_sizes_n)
+
     indx = np.arange(lower_min, lower_min + max_dropout_fraction_n + 1e-15, step_sizes_n[0]).astype(int)  # epochs start
-    # print(indx)
     range_ind = np.arange(0, max_width)  # interval indices
-    # print(range_ind)
     Xs = np.zeros((max_width, get_length(indx)))  # preload entire quantile interval matrix
-    # print(Xs.shape)
     for k, i in enumerate(indx):
         Xs[:, k] = X[i + range_ind]  # build each quantile interval
 
@@ -369,20 +368,12 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
     # print(gridsearch_val)
     for m in gridsearch_val:  # gridsearch for different quantile interval
         # scale and bin the data in the intervals
-        # print(m)
-        # print(m.shape)
-
         nbins = int(round(3 * np.log2(1 + m / 2)))  # scale interval
-        # print(nbins)
         H = Xs[range(m), :] * nbins / Xs[m - 1, :]  # scale data bins
-        # print("H shape")
-        # print(H.shape)
-        binscounts = np.zeros((nbins, H.shape[1]))   # init bincounts
+        binscounts = np.zeros((nbins, H.shape[1]))  # init bincounts
         for k in range(H.shape[1]):
-            binscounts[:, k], _ = np.histogram(H[:,k], nbins)
+            binscounts[:, k], _ = np.histogram(H[:, k], nbins)
 
-        # print(binscounts.shape)
-        # print(binscounts)
         logq = np.log(binscounts + 0.01)  # return log(bincounts) in intervals
 
         # for each shape value...
@@ -390,12 +381,12 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
             bounds = zbounds[k];
 
             # evaluate truncated generalized Gaussian pdf at bin centers
-            x = bounds[0] + np.linspace(0.5, (nbins-0.5), num=nbins) / nbins * np.diff(bounds)[0];
+            x = bounds[0] + np.linspace(0.5, (nbins - 0.5), num=nbins) / nbins * np.diff(bounds)[0];
             p = np.exp(-np.abs(x) ** beta) * rescale[k];
             p = p / np.sum(p);
 
             # calc KL divergences for the specific interval
-            kl = np.sum(p * (np.log(p) - np.transpose(logq)),axis=1) + np.log(m)
+            kl = np.sum(p * (np.log(p) - np.transpose(logq)), axis=1) + np.log(m)
             # TODO: check matlab behaviour of KLdiv and compare
 
             # update optimal parameters
@@ -405,7 +396,6 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
                 opt_beta = beta
                 opt_bounds = bounds
                 opt_lu = [X1[idx], X1[idx] + Xs[m, idx]]
-
 
     # recover distribution parameters at optimum
     alpha = (opt_lu[1] - opt_lu[0]) / np.diff(opt_bounds)[0]
@@ -420,7 +410,7 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
 
 if __name__ == '__main__':
     doSequential = True
-    doTest = False
+    doTest = True
 
     print("TEST rASR: prepare data")
     import time
@@ -442,14 +432,21 @@ if __name__ == '__main__':
         blocksize = int(round(srate * 0.5))
 
         t = time.time()
+
         epochs = epoch(X, blocksize, blocksize, axis=0)
-        epochs = np.swapaxes(epochs, 1, 2)  # (n_trials, n_channels, n_times)
+
         print('Elapsed for epoching: %.6f ms' % ((time.time() - t) * 1000))
 
-        covmats = covariances(epochs)
+        covmats = covariances(np.swapaxes(epochs, 1, 2)) # (n_trials, n_channels, n_times)
         print('Elapsed for epoching+covmats: %.6f ms' % ((time.time() - t) * 1000))
 
-        meancovs = mean_covariance(covmats, metric='euclid')
+        #meancovs = mean_covariance(covmats, metric='euclid')
+        meancovs = np.reshape(geometric_median(
+            np.reshape(covmats,
+                       (covmats.shape[0], covmats.shape[1] * covmats.shape[2])
+                       )
+        ), (covmats.shape[1], covmats.shape[2])
+        )
         print('Elapsed for epoching+covmats+mean: %.6f ms' % ((time.time() - t) * 1000))
 
         mixing = sqrtm(meancovs)
@@ -471,6 +468,12 @@ if __name__ == '__main__':
         for c in range(C):
             dist_params[c, :] = _fit_eeg_distribution(rms_sliding[:, c])
         print('Elapsed for ...+eeg_fit: %.6f ms' % ((time.time() - t) * 1000))
+
+        # test median methods
+
+        points = np.random.uniform(1e-15, 1, (300, 16))
+
+        points_med = geometric_median(points)
 
     if doTest:
         # fit test
