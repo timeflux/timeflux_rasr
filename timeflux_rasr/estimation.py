@@ -148,8 +148,8 @@ class RASR(BaseEstimator, TransformerMixin):
             # TODO: add condition where data X.shape is (Nt, Ns * Ne) but will require additional Ne parameter
             raise ValueError("X.shape should be (1, Ns, Ne) or (Ns, Ne)")
 
-        assert(Ne < Ns, "number of samples should be higher than number of electrodes, check than \n"
-                      "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) ")
+        assert Ne < Ns, "number of samples should be higher than number of electrodes, check than \n" \
+                      + "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) "
         # epoching
         print("epoching")
         # print(self.blocksize)
@@ -203,13 +203,15 @@ class RASR(BaseEstimator, TransformerMixin):
             Data to clean, already filtered
         Returns
         -------
-        X : ndarray, shape (n_trials, n_samples, n_channels)
+        Xclean : ndarray, shape (n_trials, n_samples, n_channels)
             Cleaned data
         """
 
         Nt, Ns, Ne = X.shape
-        assert (Ne < Ns, "number of samples should be higher than number of electrodes, check than \n"
-                         "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) ")
+        Xclean = np.zeros(X.shape)
+
+        assert Ne < Ns, "number of samples should be higher than number of electrodes, check than \n" \
+                         + "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) "
 
         covmats = covariances(np.swapaxes(epochs, 1, 2), estimator=self.estimator)  # (n_trials, n_channels, n_times)
 
@@ -223,14 +225,18 @@ class RASR(BaseEstimator, TransformerMixin):
             indx = np.argsort(evals)  # sort in ascending
             evecs = evecs[:, indx]
 
-            keep = evals[indx] < sum((self.threshod_ * evecs) ** 2) | \
-                   (np.arrange(Ne) < (Ne * (1 - self.max_dimension)))
+            keep = (evals[indx] < sum((self.threshold_ * evecs) ** 2)) | \
+                   (np.arange(Ne) < (Ne * (1 - self.max_dimension)))
 
             keep = np.expand_dims(keep, 0)   # for element wise multiplication that follows
 
-          #  R =  self.mixing_.dot(np.linalg.pinv( evecs.transpose().dot(self.mixing_) )).dot( * )evecs.transpose())
+            spatialfilter = np.linalg.pinv(keep.transpose() * evecs.transpose().dot(self.mixing_))
 
-        return X
+            R = self.mixing_.dot(spatialfilter).dot(evecs.transpose())
+
+            Xclean[k, :] = X[k, :].dot(R.transpose()) #suboptimal in term of memory but great for debug
+
+        return Xclean
 
     def fit_transform(self, X, y=None):
         """
@@ -451,6 +457,8 @@ if __name__ == '__main__':
     cov = np.dot(np.array(cov), np.transpose(np.array(cov)))
     X = np.random.multivariate_normal(mean, cov, (S,))
 
+    X[:, -1] += (np.random.randint(0, 1000, (S,)) > 995) * 1000  # artefact with 0.5 % chance
+
     if doSequential:
         print("TEST rASR estimation and checking computation time and each step")
 
@@ -511,3 +519,4 @@ if __name__ == '__main__':
 
         pipeline.fit(np.expand_dims(X, axis=0))
         print("Test RASR: fitted pipeline")
+        Xclean = pipeline.transform(np.expand_dims(X, axis=0))
