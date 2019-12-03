@@ -215,7 +215,6 @@ class RASR(BaseEstimator, TransformerMixin):
             X = np.expand_dims(X, 0)
 
         elif len(X.shape) == 3:
-            # concatenate all epochs
             Nt, Ns, Ne = X.shape  # 3D array (not fully sklearn-compatible). First dim should always be trials.
 
         else:
@@ -252,7 +251,7 @@ class RASR(BaseEstimator, TransformerMixin):
 
             R = self.mixing_.dot(spatialfilter).dot(evecs.transpose())
 
-            Xclean[k, :] = X[k,:].dot(R.transpose()) #suboptimal in term of memory but great for debug
+            Xclean[k, :] = X[k, :].dot(R.transpose()) #suboptimal in term of memory but great for debug
 
         return Xclean
 
