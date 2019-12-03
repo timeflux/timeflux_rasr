@@ -206,16 +206,34 @@ class RASR(BaseEstimator, TransformerMixin):
         Xclean : ndarray, shape (n_trials, n_samples, n_channels)
             Cleaned data
         """
+        print("RASR.transform(): check input")
+        # TODO: 2D array for sklearn compatibility? (see below)
+        if (X.shape[0] > 1) and (len(X.shape) < 3):
+            print("WARNING: RASR.transform(): assuming X.shape (Ns, Ne)")
+            Nt = 1
+            Ns, Ne = X.shape  # 2D array (but loosing first dim for trials, not sklearn-friendly)
+            X = np.expand_dims(X, 0)
 
-        Nt, Ns, Ne = X.shape
-        Xclean = np.zeros(X.shape)
+        elif len(X.shape) == 3:
+            # concatenate all epochs
+            Nt, Ns, Ne = X.shape  # 3D array (not fully sklearn-compatible). First dim should always be trials.
+
+        else:
+            # TODO: add condition where data X.shape is (Nt, Ns * Ne) but will require additional Ne parameter
+            raise ValueError("X.shape should be (1, Ns, Ne) or (Ns, Ne)")
+
+        Xclean = np.zeros((Nt, Ns, Ne))
 
         assert Ne < Ns, "number of samples should be higher than number of electrodes, check than \n" \
                          + "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) "
 
-        covmats = covariances(np.swapaxes(epochs, 1, 2), estimator=self.estimator)  # (n_trials, n_channels, n_times)
+        print("RASR.transform(): compute covariances")
+
+        covmats = covariances(np.swapaxes(X, 1, 2), estimator=self.estimator)  # (n_trials, n_channels, n_times)
 
         # TODO: update the mean covariance (required for online update) only in partial_fit ?
+
+        print("RASR.transform(): clean each epoch")
 
         for k in range(Nt):
 
@@ -234,7 +252,7 @@ class RASR(BaseEstimator, TransformerMixin):
 
             R = self.mixing_.dot(spatialfilter).dot(evecs.transpose())
 
-            Xclean[k, :] = X[k, :].dot(R.transpose()) #suboptimal in term of memory but great for debug
+            Xclean[k, :] = X[k,:].dot(R.transpose()) #suboptimal in term of memory but great for debug
 
         return Xclean
 
