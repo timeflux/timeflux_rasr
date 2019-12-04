@@ -127,23 +127,20 @@ if __name__ == '__main__':
     plt.suptitle('Filtered');
 
     ## Load filtered data
-
-
     mne_eeg_filtered = read_raw_eeglab(Config.filtered_files[k_file])
     df_eeg_filtered = mne_eeg_filtered.to_data_frame()
-    mne_eeg_filtered.plot_psd();
-    mne_eeg_filtered.plot();
+    mne_eeg_filtered.plot(title="filtered")
 
 
     ## Load calibration data
     mne_eeg_calibration = read_raw_eeglab(Config.calibration_files[k_file])
     df_eeg_calibration = mne_eeg_calibration.to_data_frame()
-    mne_eeg_calibration.plot();
+    mne_eeg_calibration.plot(title="Calibration")
 
     ## Load rASR output
 
     mne_eeg_cleaned = read_raw_eeglab(Config.riemannian_asr_out_files[k_file])
-    mne_eeg_cleaned.plot();
+    mne_eeg_cleaned.plot(title="RASR Matlab")
 
     df_eeg_cleaned = mne_eeg_cleaned.to_data_frame()
     df_eeg_cleaned.head()
