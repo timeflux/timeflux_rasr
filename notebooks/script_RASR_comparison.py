@@ -188,31 +188,30 @@ if __name__ == '__main__':
 
     # %%
 
-    rASR_pipeline = make_pipeline(RASR())
+    rASR_pipeline = make_pipeline(RASR(rejection_cutoff=20, max_dimension=0.33))
     print(X_fit.shape)
     print(X_test.shape)
     X_test_transformed = rASR_pipeline.fit(X_fit).transform(X_test)
 
     # %%
 
-    k_ch = 8
-    k_epoch = 10
-
-    plt.figure()
-    plt.plot(X_test[k_epoch, :, k_ch])
-    plt.plot(X_test_transformed[k_epoch, :, k_ch], '--')
-    plt.suptitle(f'Pre/post from pipeline on one chunk of EEG signal')
-    plt.xlabel('time (sample)')
-    plt.show()
+    # k_ch = 8
+    # k_epoch = 10
+    #
+    # plt.figure()
+    # plt.plot(X_test[k_epoch, :, k_ch])
+    # plt.plot(X_test_transformed[k_epoch, :, k_ch], '--')
+    # plt.suptitle(f'Pre/post from pipeline on one chunk of EEG signal')
+    # plt.xlabel('time (sample)')
+    # plt.show()
 
     mne_eeg_rasr_info = mne_eeg_filtered.info
-    X_test_transformed[1,0,:]
     data = X_test_transformed.reshape(X_test_transformed.shape[0] * X_test_transformed.shape[1],-1).transpose()
     mne_eeg_rasr = mne.io.RawArray(data * 1e-6, mne_eeg_rasr_info)
 
     #comparison
-    mne_eeg_filtered.plot(title="initial")
-    mne_eeg_cleaned.plot(title="RASR matlab")
+    #mne_eeg_filtered.plot(title="initial")
+    #mne_eeg_cleaned.plot(title="RASR matlab")
 
     mne_eeg_rasr.plot(title="RASR python")
     # %% md
