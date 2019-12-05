@@ -140,6 +140,7 @@ if __name__ == '__main__':
     ## Load rASR output
 
     mne_eeg_cleaned = read_raw_eeglab(Config.riemannian_asr_out_files[k_file])
+    mne_eeg_cleaned.plot_psd()
     mne_eeg_cleaned.plot(title="RASR Matlab")
 
     df_eeg_cleaned = mne_eeg_cleaned.to_data_frame()
@@ -204,6 +205,16 @@ if __name__ == '__main__':
     plt.xlabel('time (sample)')
     plt.show()
 
+    mne_eeg_rasr_info = mne_eeg_filtered.info
+    X_test_transformed[1,0,:]
+    data = X_test_transformed.reshape(X_test_transformed.shape[0] * X_test_transformed.shape[1],-1).transpose()
+    mne_eeg_rasr = mne.io.RawArray(data * 1e-6, mne_eeg_rasr_info)
+
+    #comparison
+    mne_eeg_filtered.plot(title="initial")
+    mne_eeg_cleaned.plot(title="RASR matlab")
+
+    mne_eeg_rasr.plot(title="RASR python")
     # %% md
 
     ## Back to signal
