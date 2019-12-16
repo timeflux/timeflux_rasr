@@ -19,6 +19,8 @@ dependencies:
     - jupyter
     - pyxdf
     - pyriemann
+    - autograd
+    - pymanopt
     # Pip dependencies
     - pip
     - pip:
