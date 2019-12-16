@@ -1,3 +1,9 @@
+"""pymanopt vendoring addition for hessian and gradien verification
+To be committed in pymanopt (and therefore this code will be obsolete)
+
+Author: Sylvain Chevallier, December 2019
+"""
+
 # checkgrad and checkhess
 import autograd.numpy as np
 import matplotlib.pyplot as plt
