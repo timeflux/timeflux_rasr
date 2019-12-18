@@ -19,7 +19,7 @@ from sklearn.pipeline import make_pipeline
 from pyriemann.estimation import Covariances
 from pyriemann.channelselection import FlatChannelRemover
 from timeflux_rasr.estimation import RASR
-
+from utils.viz import plot_all_mne_data
 sns.set(font_scale=1)
 
 print("Config LOADED")
@@ -58,7 +58,7 @@ if __name__ == '__main__':
         duration = (df_eeg_raw.index[-1] - df_eeg_raw.index[0]).total_seconds() / 60
         rate = estimate_rate(df_eeg_raw)
         mne_eeg_raw, mene_event_id, mne_picks = pandas_to_mne(df_eeg_raw, rate=rate, bad_ch=bad_ch)
-
+        mne_eeg_filtered_from_raw = mne_eeg_raw.copy().filter(1, 30)
 
         ## Load filtered data
         mne_eeg_filtered = read_raw_eeglab(Config.filtered_files[k_file])
@@ -77,7 +77,7 @@ if __name__ == '__main__':
         interval = size  # step interval in samples
 
         # convert filtered data into epochs
-        np_eeg_filtered_epochs = epoch(df_eeg_filtered.values, size, interval, axis=0)  # (n_channels,  n_times, n_trials)
+        np_eeg_filtered_epochs = epoch(df_eeg_filtered, size, interval, axis=0)  # (n_channels,  n_times, n_trials)
         print("shape test data")
         print(np_eeg_filtered_epochs.shape)
         # np_eeg_filtered_epochs = np.swapaxes(np_eeg_filtered_epochs, 0, 2 ) # (n_trials, n_channels, n_times)
@@ -95,19 +95,32 @@ if __name__ == '__main__':
 
         X_fit = np_eeg_calibration_epochs
         X_test = np_eeg_filtered_epochs
-        print("copied epochs")
 
         rASR_pipeline = make_pipeline(RASR(rejection_cutoff=20, max_dimension=0.33))
-        print(X_fit.shape)
-        print(X_test.shape)
         X_test_transformed = rASR_pipeline.fit(X_fit).transform(X_test)
 
         mne_eeg_rasr_info = mne_eeg_filtered.info
-        data = X_test_transformed.reshape(X_test_transformed.shape[0] * X_test_transformed.shape[1],-1).transpose()
+        data = X_test_transformed.reshape(X_test_transformed.shape[0] * X_test_transformed.shape[1], -1).transpose()
         mne_eeg_rasr = mne.io.RawArray(data * 1e-6, mne_eeg_rasr_info)
 
         #comparison
-        mne_eeg_filtered.plot(title="initial")
-        mne_eeg_cleaned.plot(title="RASR matlab")
+        title = "s" + str(k_file) + "_filtered"
+        plot_all_mne_data(mne_eeg_filtered, Config.results_folder, title)
 
-        mne_eeg_rasr.plot(title="RASR python")
+        plt.close()
+        title = "s" + str(k_file) + "_RASR_matlab"
+        plot_all_mne_data(mne_eeg_cleaned, Config.results_folder, title)
+
+        title = "s" + str(k_file) + "_RASR_matlab_diff"
+        eeg_rasr_diff = mne_eeg_filtered[:, 0:len(mne_eeg_cleaned)][0] - mne_eeg_cleaned.get_data()
+        mne_eeg_rasr_diff = raw = mne.io.RawArray(data=eeg_rasr_diff, info=mne_eeg_cleaned.info, verbose=False)
+        plot_all_mne_data(mne_eeg_rasr_diff, Config.results_folder, title)
+
+        plt.close()
+        title = "s" + str(k_file) + "_RASR_python"
+        plot_all_mne_data(mne_eeg_rasr, Config.results_folder, title)
+
+        title = "s" + str(k_file) + "_RASR_python_diff"
+        eeg_rasr_diff = mne_eeg_filtered[:, 0:len(mne_eeg_rasr)][0] - mne_eeg_rasr.get_data()
+        mne_eeg_rasr_diff = raw = mne.io.RawArray(data=eeg_rasr_diff, info=mne_eeg_filtered.info, verbose=False)
+        plot_all_mne_data(mne_eeg_rasr_diff, Config.results_folder, title)
