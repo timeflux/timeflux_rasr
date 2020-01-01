@@ -13,6 +13,8 @@ class Config():
         data_path = '/Users/raph/OMIND_SERVER/DATA/rASR Data/'
     elif username == "louis":
         data_path = "/Users/louis/AlayaTec Dropbox/louis korczowski/rASR Data/"
+    elif username == "sylchev":
+        data_path = "/Users/sylchev/Dropbox/rASR Data/"
     else:
         raise NameError(username + ": User path not defined")
 
