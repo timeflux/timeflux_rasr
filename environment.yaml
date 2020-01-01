@@ -17,12 +17,12 @@ dependencies:
     - matplotlib
     - seaborn
     - jupyter
-    - pyxdf
-    - pyriemann
     # Pip dependencies
     - pip
     - pip:
         - mne
+        - pyxdf
+        - pyriemann
         # prefer tarball for timeflux so that versioneer does not fail to detect version
         - git+https://github.com/timeflux/timeflux_dsp@9494f40#egg=timeflux_dsp
         - git+https://github.com/timeflux/timeflux#egg=timeflux_dsp
