@@ -1,0 +1,68 @@
+graphs:
+
+  - nodes:
+      - id: replay
+        module: timeflux.nodes.hdf5
+        class: Replay
+        params:
+          filename: ./test/data/sme_1_1.hdf5
+          keys:
+            - /events
+            - /eeg
+          timespan: 0.1
+          resync: False
+
+      - id: gate_calibration
+        module: timeflux.nodes.gate
+        class: Gate
+        params:
+          event_opens: calibration_begins
+          event_closes: calibration_ends
+          truncate: True
+
+      - id: append_calibration
+        module: timeflux.nodes.accumulate
+        class: AppendDataFrame
+
+      - id: fit
+        module: timeflux_ml.nodes.fit
+        class: Fit
+        params:
+          pipeline_steps:
+            scaler: timeflux_rasr.estimation.RASR
+#          pipeline_params:
+          has_targets: False
+      - id: transform
+        module: timeflux_ml.nodes.transform
+        class: Transform
+        params:
+          set_columns: all
+          set_index: all
+      - id: display
+        module: timeflux.nodes.debug
+        class: Display
+      - id: display1
+        module: timeflux.nodes.debug
+        class: Display
+
+    edges:
+#      - source: replay:eeg
+#        target: display
+      - source: replay:events
+        target: gate_calibration:events
+      - source: replay:eeg
+        target: gate_calibration
+      - source: gate_calibration
+        target: append_calibration
+      - source: append_calibration
+        target: fit
+      - source: fit:model
+        target: transform:model
+      - source: replay:eeg
+        target: transform
+      - source: transform
+        target: display
+
+      - source: replay:events
+        target: display1
+    rate: 10
