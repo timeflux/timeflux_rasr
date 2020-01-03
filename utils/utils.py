@@ -151,9 +151,7 @@ def pandas_to_mne(data, rate, events=None, montage_kind='standard_1005', unit_fa
 
     fix_ch_names = {'Tp9':'TP9', 'Tp10':'TP10'}
     ch_names = [fix_ch_names.get(ch, ch) for ch in list(data.columns)]
-    # print (ch_names)
-    # ch_names = list(data.columns)
-    ch_types = ['eeg'] * 24 + ['misc'] * 8
+    ch_types = ['eeg'] * n_chan
 
     montage = mne.channels.make_standard_montage(montage_kind) if montage_kind is not None else None
     # montage = mne.channels.read_montage(montage_kind) if montage_kind is not None else None
