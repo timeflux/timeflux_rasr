@@ -426,7 +426,7 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
 
         # for each shape value...
         for k, beta in enumerate(beta_range):
-            bounds = zbounds[k];
+            bounds = zbounds[k]
 
             # evaluate truncated generalized Gaussian pdf at bin centers
             x = bounds[0] + np.linspace(0.5, (nbins - 0.5), num=nbins) / nbins * np.diff(bounds)[0];

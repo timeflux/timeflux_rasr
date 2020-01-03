@@ -18,6 +18,11 @@ class Config():
     else:
         raise NameError(username + ": User path not defined")
 
+    results_folder = os.path.join(data_path, "results")
+
+    if not os.path.exists(results_folder):
+        os.makedirs(results_folder)
+
     raw_files = sorted(glob(os.path.join(data_path, 'raw', '*xdf')))
     filtered_files = sorted(glob(os.path.join(data_path, 'filtered', '*set')))
     original_asr_out_files = sorted(glob(os.path.join(data_path, 'original ASR out', '*set')))
