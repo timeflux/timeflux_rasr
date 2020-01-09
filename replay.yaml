@@ -12,7 +12,7 @@ graphs:
       module: timeflux.nodes.hdf5
       class: Replay
       params:
-        filename: data/sme_1_2.hdf5
+        filename: data/sme_1_1.hdf5
         keys:
           - /eeg
           - /events
@@ -38,6 +38,7 @@ graphs:
         event_start_accumulation: calibration_begins
         event_stop_accumulation: calibration_ends
         event_start_training: calibration_ends
+        buffer_size: 60s
         steps:
           - module: timeflux_rasr.shape
             class: Expand
@@ -109,8 +110,8 @@ graphs:
       params:
         path: .
     edges:
-      # - source: sub:before
-      #   target: save:before
+      - source: sub:before
+        target: save:before
       - source: sub:after
         target: save:after
     rate: 1
