@@ -16,7 +16,7 @@ graphs:
         keys:
           - /eeg
           - /events
-        timespan: .1
+        timespan: .04
     - id: bandpass
       module: timeflux_dsp.nodes.filters
       class: IIRFilter
