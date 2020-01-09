@@ -253,7 +253,7 @@ class RASR(BaseEstimator, TransformerMixin):
 
             Xclean[k, :] = X[k, :].dot(R.transpose()) #suboptimal in term of memory but great for debug
 
-        return Xclean[0] # Expect 2D output
+        return Xclean
 
     def fit_transform(self, X, y=None):
         """

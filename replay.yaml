@@ -16,7 +16,7 @@ graphs:
         keys:
           - /eeg
           - /events
-        timespan: .04
+        timespan: .1
     - id: bandpass
       module: timeflux_dsp.nodes.filters
       class: IIRFilter
@@ -39,11 +39,14 @@ graphs:
         event_stop_accumulation: calibration_ends
         event_start_training: calibration_ends
         steps:
+          - module: timeflux_rasr.shape
+            class: Expand
           - module: timeflux_rasr.estimation
             class: RASR
             args:
-              window_len: .5
-              window_overlap: .5 # TODO: window_step for consistency
+              srate: 250
+          - module: timeflux_rasr.shape
+            class: Reduce
     - id: display
       module: timeflux.nodes.debug
       class: Display
@@ -74,7 +77,7 @@ graphs:
       target: pub_after
     - source: replay:events
       target: display
-    rate: 25
+    rate: 10
 
   - id: Monitor
     nodes:
@@ -106,8 +109,8 @@ graphs:
       params:
         path: .
     edges:
-      - source: sub:before
-        target: save:before
+      # - source: sub:before
+      #   target: save:before
       - source: sub:after
         target: save:after
     rate: 1
