@@ -38,15 +38,14 @@ graphs:
         event_start_accumulation: calibration_begins
         event_stop_accumulation: calibration_ends
         event_start_training: calibration_ends
-        buffer_size: 60s
         steps:
-          - module: timeflux_rasr.shape
+          - module: timeflux.estimators.transformers.shape
             class: Expand
           - module: timeflux_rasr.estimation
             class: RASR
             args:
               srate: 250
-          - module: timeflux_rasr.shape
+          - module: timeflux.estimators.transformers.shape
             class: Reduce
     - id: display
       module: timeflux.nodes.debug
