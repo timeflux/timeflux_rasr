@@ -14,9 +14,8 @@ graphs:
       params:
         filename: data/sme_1_1.hdf5
         keys:
-          - /eeg
+          - /eeg/raw
           - /events
-        timespan: .1
     - id: bandpass
       module: timeflux_dsp.nodes.filters
       class: IIRFilter
@@ -61,7 +60,7 @@ graphs:
       params:
         topic: after
     edges:
-    - source: replay:eeg
+    - source: replay:eeg_raw
       target: bandpass
     - source: bandpass
       target: window
