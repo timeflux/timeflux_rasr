@@ -260,7 +260,7 @@ def get_length(x):
         the number of elements of x
     """
     length_ = None
-    if isinstance(x, (np.ndarray,np.generic)):
+    if isinstance(x, (np.ndarray, np.generic)):
         length_ = x.size
     else:
         try:

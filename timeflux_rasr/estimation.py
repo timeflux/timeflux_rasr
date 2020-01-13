@@ -354,29 +354,36 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
     # sanity checks
     if len(X.shape) > 1:
         raise ValueError('X needs to be a 1D ndarray.')
+
+    n = len(X)
+
+    # if n < 100:
+    #     raise ValueError(f'X has too few samples to compute quantiles, len(X) should be at least 100. (current value={n})')
     if get_length(quantile_range) > 2:
         raise ValueError('quantile_range needs to be a 2-elements vector.')
-    if any(quantile_range > 7) | any(quantile_range < 0):
+    if any(quantile_range > 1) | any(quantile_range < 0):
         raise ValueError('Unreasonable quantile_range.')
     if any(step_sizes < 0.0001) | any(step_sizes > 0.1):
         raise ValueError('Unreasonable step sizes.')
+    if any(step_sizes * n < 1):
+        raise ValueError(f"Step sizes compared to actual number of samples available, step_sizes * n should be "
+                         f"greater than 1 (current value={step_sizes * n}")
     if any(beta_range >= 7) | any(beta_range <= 1):
         raise ValueError('Unreasonable shape range.')
 
     # sort data for quantiles
-    # print(X.shape)
     X = np.sort(X)
-    n = get_length(X)
-
+    if any(beta_range <= 1):
+        raise ValueError('Unreasonable shape range.')
     # compute z bounds for the truncated standard generalized Gaussian pdf and pdf rescaler for each beta
     zbounds = []
     rescale = []
     for k, b in enumerate(beta_range):
-        zbounds.append(np.sign(quantile_range - 1 / 2) *
+        zbounds.append(np.sign(quantile_range - 0.5) *
                        gammaincinv(
-                           np.sign(quantile_range - 1 / 2) * (2 * quantile_range - 1),
-                           (1 / b) ** (1 / b)
-                       )
+                           (1 / b),
+                           np.sign(quantile_range - 0.5) * (2 * quantile_range - 1)
+                       ) ** (1 / b)
                        )
         rescale.append(b / (2 * gamma(1 / b)))
 
@@ -390,10 +397,11 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
     min_width = int(round(min_clean_fraction * n * np.diff(quantile_range)[0]))  #
     max_dropout_fraction_n = int(round(max_dropout_fraction * n))
     step_sizes_n = np.round(step_sizes * n).astype(int)
+    assert any(step_sizes_n >= 1)
 
     # get matrix of shifted data ranges
+    indx = np.arange(lower_min, lower_min + max_dropout_fraction_n + 0.5, step_sizes_n[0]).astype(int)  # epochs start
 
-    indx = np.arange(lower_min, lower_min + max_dropout_fraction_n + 1e-15, step_sizes_n[0]).astype(int)  # epochs start
     range_ind = np.arange(0, max_width)  # interval indices
     Xs = np.zeros((max_width, get_length(indx)))  # preload entire quantile interval matrix
     for k, i in enumerate(indx):
@@ -405,11 +413,11 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
     # gridsearch to find optimal fitting coefficient based on given parameters
 
     opt_val = float("inf")
-    gridsearch_val = np.arange(min_width, max_width + 1e-15, step_sizes_n[0]).astype(int)
+    gridsearch_val = np.arange(max_width-1,  min_width , -step_sizes_n[0]).astype(int)
     # print(gridsearch_val)
     for m in gridsearch_val:  # gridsearch for different quantile interval
         # scale and bin the data in the intervals
-        nbins = int(round(3 * np.log2(1 + m / 2)))  # scale interval
+        nbins = int(round(3 * np.log2(1 + m / 2))) + 1  # scale interval
         H = Xs[range(m), :] * nbins / Xs[m - 1, :]  # scale data bins
         binscounts = np.zeros((nbins, H.shape[1]))  # init bincounts
         for k in range(H.shape[1]):
@@ -422,13 +430,12 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
             bounds = zbounds[k]
 
             # evaluate truncated generalized Gaussian pdf at bin centers
-            x = bounds[0] + np.linspace(0.5, (nbins - 0.5), num=nbins) / nbins * np.diff(bounds)[0];
-            p = np.exp(-np.abs(x) ** beta) * rescale[k];
-            p = p / np.sum(p);
+            x = bounds[0] + np.linspace(0.5, (nbins - 0.5), num=nbins) / nbins * np.diff(bounds)[0]
+            p = np.exp(-np.abs(x) ** beta) * rescale[k]
+            p = p / np.sum(p)
 
             # calc KL divergences for the specific interval
             kl = np.sum(p * (np.log(p) - np.transpose(logq)), axis=1) + np.log(m)
-            # TODO: check matlab behaviour of KLdiv and compare
 
             # update optimal parameters
             idx = np.argmin(kl)
