@@ -5,7 +5,7 @@ import logging
 from sklearn.pipeline import Pipeline
 from timeflux_rasr.estimation import _fit_eeg_distribution
 
-tolerance = 0.05   # 5% tolance
+tolerance = 0.01   # 1% tolerance
 
 def test_fit_eeg_distribution():
     X = np.arange(1, 1001) ** 2 / 10000
