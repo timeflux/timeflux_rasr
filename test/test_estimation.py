@@ -43,6 +43,5 @@ def test_rasr_rand_fit_transform():
 # TODO: test_rasr_error_1              # test wrong size input
 # TODO: test_rasr_error_2              # test wrong parameters (blocksize too low, window_len too low, etc.)
 # TODO; test_rasr_error_3              # test when singular matrix as input
-# TODO: test_eeg_fit_distribution      # test output from given vector
 # TODO: test_rms                       # test output from a given matrix
 

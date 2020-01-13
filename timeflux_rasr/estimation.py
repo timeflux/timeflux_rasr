@@ -1,6 +1,5 @@
 from sklearn.base import BaseEstimator, TransformerMixin
 from pyriemann.utils.covariance import _check_est
-from pyriemann.utils.mean import (mean_covariance, _check_mean_method)
 from pyriemann.utils.covariance import covariances
 from scipy.linalg import (sqrtm, eigh)
 import numpy as np
@@ -66,11 +65,6 @@ class RASR(BaseEstimator, TransformerMixin):
     threshold_ : ndarray, shape(n_chan,)
         Threshold operator used to find the subspace dimension such as:
         .. math:: threshold_ = T: X_{clean} = m ( V^T_{clean} M )^+ V^T X
-    mean_cov_ : ndarray, shape(n_chan, n_chan)
-        The current geometric mean of the two last epochs (used for online_transform only)
-        For transform function, the mean_cov is re-initialized at each call of transform therefore.
-
-
     """
 
     def __init__(self, srate=128, estimator='scm', metric='euclid', window_len=0.5,
@@ -140,7 +134,7 @@ class RASR(BaseEstimator, TransformerMixin):
             # concatenate all epochs
             Nt, Ns, Ne = X.shape  # 3D array (not fully sklearn-compatible). First dim should always be trials.
             X = X.reshape((X.shape[1] * X.shape[0], X.shape[2]))
-            if Nt>1:
+            if Nt > 1:
                 print("WARNING: RASR.fit(): concatenating all epochs. \n"
                       "WARNING: RASR.fit(): it may cause issues if overlapping")
 
@@ -149,7 +143,7 @@ class RASR(BaseEstimator, TransformerMixin):
             raise ValueError("X.shape should be (1, Ns, Ne) or (Ns, Ne)")
 
         assert Ne < Ns, "number of samples should be higher than number of electrodes, check than \n" \
-                      + "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) "
+                        + "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) "
         # epoching
         print("epoching")
         # print(self.blocksize)
@@ -169,7 +163,6 @@ class RASR(BaseEstimator, TransformerMixin):
                        )
         ), (covmats.shape[1], covmats.shape[2])
         )
-
 
         self.mixing_ = sqrtm(covmean)  # estimate matrix matrix
 
@@ -224,7 +217,7 @@ class RASR(BaseEstimator, TransformerMixin):
         Xclean = np.zeros((Nt, Ns, Ne))
 
         assert Ne < Ns, "number of samples should be higher than number of electrodes, check than \n" \
-                         + "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) "
+                        + "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) "
 
         print("RASR.transform(): compute covariances")
 
@@ -235,9 +228,8 @@ class RASR(BaseEstimator, TransformerMixin):
         print("RASR.transform(): clean each epoch")
 
         for k in range(Nt):
-
             # TODO: HAVE BOTH euclidian PCA and Riemannian PCA (PGA) using pymanopt
-            evals, evecs = eigh(covmats[k,:])  # compute PCA
+            evals, evecs = eigh(covmats[k, :])  # compute PCA
             # TODO: comment in matlab "use eigenvalues in descending order" but actually is doing in ascending
             indx = np.argsort(evals)  # sort in ascending
             evecs = evecs[:, indx]
@@ -245,13 +237,13 @@ class RASR(BaseEstimator, TransformerMixin):
             keep = (evals[indx] < sum((self.threshold_ * evecs) ** 2)) | \
                    (np.arange(Ne) < (Ne * (1 - self.max_dimension)))
 
-            keep = np.expand_dims(keep, 0)   # for element wise multiplication that follows
+            keep = np.expand_dims(keep, 0)  # for element wise multiplication that follows
 
             spatialfilter = np.linalg.pinv(keep.transpose() * evecs.transpose().dot(self.mixing_))
 
             R = self.mixing_.dot(spatialfilter).dot(evecs.transpose())
 
-            Xclean[k, :] = X[k, :].dot(R.transpose()) #suboptimal in term of memory but great for debug
+            Xclean[k, :] = X[k, :].dot(R.transpose())  # suboptimal in term of memory but great for debug
 
         return Xclean
 
@@ -413,8 +405,11 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
     # gridsearch to find optimal fitting coefficient based on given parameters
 
     opt_val = float("inf")
-    gridsearch_val = np.arange(max_width-1,  min_width , -step_sizes_n[0]).astype(int)
-    # print(gridsearch_val)
+    opt_lu = float("inf")
+    opt_bounds = float("inf")
+    opt_beta = float("inf")
+    gridsearch_val = np.arange(max_width - 1, min_width, -step_sizes_n[0]).astype(int)
+
     for m in gridsearch_val:  # gridsearch for different quantile interval
         # scale and bin the data in the intervals
         nbins = int(round(3 * np.log2(1 + m / 2))) + 1  # scale interval
@@ -457,8 +452,8 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
 
 
 if __name__ == '__main__':
+    # TODO: remove all following section and put it into pytest
     doSequential = True
-    doTest = True
 
     print("TEST rASR: prepare data")
     import time
@@ -487,10 +482,10 @@ if __name__ == '__main__':
 
         print('Elapsed for epoching: %.6f ms' % ((time.time() - t) * 1000))
 
-        covmats = covariances(np.swapaxes(epochs, 1, 2)) # (n_trials, n_channels, n_times)
+        covmats = covariances(np.swapaxes(epochs, 1, 2))  # (n_trials, n_channels, n_times)
         print('Elapsed for epoching+covmats: %.6f ms' % ((time.time() - t) * 1000))
 
-        #meancovs = mean_covariance(covmats, metric='euclid')
+        # meancovs = mean_covariance(covmats, metric='euclid')
         meancovs = np.reshape(geometric_median(
             np.reshape(covmats,
                        (covmats.shape[0], covmats.shape[1] * covmats.shape[2])
@@ -524,16 +519,3 @@ if __name__ == '__main__':
         points = np.random.uniform(1e-15, 1, (300, 16))
 
         points_med = geometric_median(points)
-
-    if doTest:
-        # fit test
-        print("Test RASR: pipeline...")
-        from sklearn.pipeline import Pipeline
-
-        pipeline = Pipeline([
-            ("RASR", RASR())
-        ])
-
-        pipeline.fit(np.expand_dims(X, axis=0))
-        print("Test RASR: fitted pipeline")
-        Xclean = pipeline.transform(np.expand_dims(X, axis=0))
