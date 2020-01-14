@@ -3,11 +3,6 @@ It is a refactoring of the jupyter notebook and it is extended to include more a
 """
 
 from utils.config import Config
-from collections import OrderedDict
-from glob import glob
-import os
-import pandas as pd
-import numpy as np
 import mne
 from mne.io import read_raw_eeglab
 import seaborn as sns
@@ -16,13 +11,13 @@ from pyxdf import load_xdf
 from utils.utils import (epoch, get_stream_names, extract_signal_stream, float_index_to_time_index, estimate_rate,
                 pandas_to_mne)
 from sklearn.pipeline import make_pipeline
-from pyriemann.estimation import Covariances
-from pyriemann.channelselection import FlatChannelRemover
 from timeflux_rasr.estimation import RASR
 from utils.viz import plot_all_mne_data
+import logging
+
 sns.set(font_scale=1)
 
-print("Config LOADED")
+logging.info("Config LOADED")
 
 if __name__ == '__main__':
     # Kick-Off Notebook for rASR implementation
@@ -38,7 +33,7 @@ if __name__ == '__main__':
     """
 
     # Load xdf and extract eeg stream
-    print("Load EEG files")
+    logging.info("Load EEG files")
     for k_file in range(len(Config.raw_files)):
         # LOAD DATA
 
@@ -78,16 +73,16 @@ if __name__ == '__main__':
 
         # convert filtered data into epochs
         np_eeg_filtered_epochs = epoch(df_eeg_filtered, size, interval, axis=0)  # (n_channels,  n_times, n_trials)
-        print("shape test data")
-        print(np_eeg_filtered_epochs.shape)
+        logging.info("shape test data")
+        logging.info(np_eeg_filtered_epochs.shape)
         # np_eeg_filtered_epochs = np.swapaxes(np_eeg_filtered_epochs, 0, 2 ) # (n_trials, n_channels, n_times)
 
         # convert calibration data into epochs
         np_eeg_calibration_epochs = epoch(df_eeg_calibration.values, size, interval,
                                           axis=0)  # (n_channels,  n_times, n_trials)
         # np_eeg_calibration_epochs = np.swapaxes(np_eeg_calibration_epochs, 0, 2 )# (n_trials, n_channels, n_times)
-        print("shape training data")
-        print(np_eeg_calibration_epochs.shape)
+        logging.info("shape training data")
+        logging.info(np_eeg_calibration_epochs.shape)
 
         # %% md
 
