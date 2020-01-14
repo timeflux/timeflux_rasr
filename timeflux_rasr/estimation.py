@@ -136,7 +136,7 @@ class RASR(BaseEstimator, TransformerMixin):
             Nt, Ns, Ne = X.shape  # 3D array (not fully sklearn-compatible). First dim should always be trials.
             X = X.reshape((X.shape[1] * X.shape[0], X.shape[2]))
             if Nt > 1:
-                logging.warning("RASR.fit(): concatenating all epochs. \n"
+                warnings.warn("RASR.fit(): concatenating all epochs. \n"
                                 "            it may cause issues if overlapping")
 
         else:
