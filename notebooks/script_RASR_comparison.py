@@ -104,23 +104,23 @@ if __name__ == '__main__':
         mne_eeg_rasr = mne.io.RawArray(data * 1e-6, mne_eeg_rasr_info)
 
         #comparison
-        title = "s" + str(k_file) + "_filtered"
+        title = f"s{k_file}_filtered"
         plot_all_mne_data(mne_eeg_filtered, Config.results_folder, title)
 
         plt.close()
-        title = "s" + str(k_file) + "_RASR_matlab"
+        title = f"s{k_file}_RASR_matlab"
         plot_all_mne_data(mne_eeg_cleaned, Config.results_folder, title)
 
-        title = "s" + str(k_file) + "_RASR_matlab_diff"
+        title = f"s{k_file}_RASR_matlab_diff"
         eeg_rasr_diff = mne_eeg_filtered[:, 0:len(mne_eeg_cleaned)][0] - mne_eeg_cleaned.get_data()
         mne_eeg_rasr_diff = mne.io.RawArray(data=eeg_rasr_diff, info=mne_eeg_cleaned.info, verbose=False)
         plot_all_mne_data(mne_eeg_rasr_diff, Config.results_folder, title)
 
         plt.close()
-        title = "s" + str(k_file) + "_RASR_python"
+        title = f"s{k_file}_RASR_python"
         plot_all_mne_data(mne_eeg_rasr, Config.results_folder, title)
 
-        title = "s" + str(k_file) + "_RASR_python_diff"
+        title = f"s{k_file}_RASR_python_diff"
         eeg_rasr_diff = mne_eeg_filtered[:, 0:len(mne_eeg_rasr)][0] - mne_eeg_rasr.get_data()
         mne_eeg_rasr_diff = mne.io.RawArray(data=eeg_rasr_diff, info=mne_eeg_filtered.info, verbose=False)
         plot_all_mne_data(mne_eeg_rasr_diff, Config.results_folder, title)
