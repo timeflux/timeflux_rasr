@@ -8,6 +8,8 @@ Author: Sylvain Chevallier, December 2019
 import autograd.numpy as np
 import matplotlib.pyplot as plt
 from pymanopt.core.problem import Problem
+from pymanopt.solvers import TrustRegions
+from pymanopt.manifolds import Grassmann
 
 
 def identify_linear_piece(x, y, window_length):
@@ -212,3 +214,68 @@ def checkgradient(problem, x=None, d=None):
         print('If it is far from 0, then the gradient '
               'is not in the tangent space.')
 
+
+
+def nonlinear_eigh(L, p, alpha=1):
+    """Example of nonlinear eigenvalue problem: total energy minimization.
+
+    This example demonstrates how to use the Grassmann geometry factory
+    to solve the nonlinear eigenvalue problem as the optimization problem:
+    minimize 0.5*trace(X'*L*X) + (alpha/4)*(rho(X)*L\(rho(X)))
+    over X such that X'*X = Identity,
+    where L is of size n-by-n,
+    X is an n-by-k matrix, and
+    rho(X) is the diagonal part of X*X'.
+
+    Parameters
+    ----------
+    L: ndarray, shape (n, n)
+        A discrete Laplacian operator: the SPD covariance matrix
+    alpha: float
+        is a given constant for optimization problem
+    p: int
+        determines how many eigenvalues are returned
+
+    Returns
+    ----------
+
+
+    Reference
+    ----------
+    "A Riemannian Newton Algorithm for Nonlinear Eigenvalue Problems",
+    Zhi Zhao, Zheng-Jian Bai, and Xiao-Qing Jin,
+    SIAM Journal on Matrix Analysis and Applications, 36(2), 752-774, 2015.
+
+    Author
+    ----------
+    Ported to python by Louis Korczowski, December 2019
+    based on Bamdev Mishra's Matlab implementation for manopt, June 19, 2015
+    """
+
+    # Make sure the input matrix is square and symmetric
+    n = L.shape[0]
+    assert type(L) == np.ndarray, 'A must be a numpy array.'
+    assert np.isreal(L).all(), 'A must be real.'
+    assert L.shape[1] == n, 'A must be square.'
+    assert np.linalg.norm(L-L.T) < n * np.spacing(1), 'A must be symmetric.'
+    assert p <= n, 'p must be smaller than n.'
+
+    # Define the cost on the Grassmann manifold
+    Gr = Grassmann(n, p)
+
+    # TODO: find a way to double check cost function
+    def cost(X):
+        rhoX = np.sum(X ** 2, axis=1)
+        return 0.5 * np.trace(np.dot(np.transpose(X), np.dot(L, X))) + \
+               (alpha/4) * np.dot(np.transpose(rhoX), np.dot(np.linalg.inv(L), rhoX))
+
+    # Setup the problem
+    problem = Problem(manifold=Gr, cost=cost)
+
+    # Create a solver object
+    solver = TrustRegions()
+
+    # Solve
+    Xopt = solver.solve(problem, Delta_bar=8*np.sqrt(p))
+
+    return Xopt
