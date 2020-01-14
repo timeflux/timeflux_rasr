@@ -263,14 +263,27 @@ def nonlinear_eigh(L, p, alpha=1):
     # Define the cost on the Grassmann manifold
     Gr = Grassmann(n, p)
 
-    # TODO: find a way to double check cost function
-    def cost(X):
+    # defined cost function
+    def cost(X):  # matlab comparison with simulation OK <LK>
         rhoX = np.sum(X ** 2, axis=1)
         return 0.5 * np.trace(np.dot(np.transpose(X), np.dot(L, X))) + \
                (alpha/4) * np.dot(np.transpose(rhoX), np.dot(np.linalg.inv(L), rhoX))
 
+    def egrad(X): # checkgradien validation (1e-15
+        rhoX = np.sum(X ** 2, axis=1)
+        return np.dot(L, X) + alpha * np.dot(np.diag(np.dot(np.linalg.inv(L), rhoX)), X)
+
+    def ehess(X, U):
+        rhoX = np.sum(X ** 2, axis=1)
+        rhoXdot = 2 * np.sum(X*U, axis=1)
+        return np.dot(L, U) + \
+               alpha * np.dot(np.diag(np.dot(np.linalg.inv(L), rhoXdot)), X) + \
+               alpha * np.dot(np.diag(np.dot(np.linalg.inv(L), rhoX)), U)
+
+
+
     # Setup the problem
-    problem = Problem(manifold=Gr, cost=cost)
+    problem = Problem(manifold=Gr, cost=cost, egrad=egrad, ehess=ehess)
 
     # Create a solver object
     solver = TrustRegions()
