@@ -257,7 +257,7 @@ def nonlinear_eigh(L, p, alpha=1):
     assert type(L) == np.ndarray, 'A must be a numpy array.'
     assert np.isreal(L).all(), 'A must be real.'
     assert L.shape[1] == n, 'A must be square.'
-    assert np.linalg.norm(L-L.T) < n * np.spacing(1), 'A must be symmetric.'
+    assert np.linalg.norm(L-np.transpose(L)) < n * np.spacing(1), 'A must be symmetric.'
     assert p <= n, 'p must be smaller than n.'
 
     # Define the cost on the Grassmann manifold
@@ -276,6 +276,7 @@ def nonlinear_eigh(L, p, alpha=1):
     solver = TrustRegions()
 
     # Solve
-    Xopt = solver.solve(problem, Delta_bar=8*np.sqrt(p))
+    # Xopt = solver.solve(problem, Delta_bar=8*np.sqrt(p))
+    Xopt = solver.solve(problem)
 
     return Xopt
