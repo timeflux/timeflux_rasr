@@ -269,7 +269,7 @@ def nonlinear_eigh(L, p, alpha=1):
         return 0.5 * np.trace(np.dot(np.transpose(X), np.dot(L, X))) + \
                (alpha/4) * np.dot(np.transpose(rhoX), np.dot(np.linalg.inv(L), rhoX))
 
-    def egrad(X): # checkgradien validation (1e-15
+    def egrad(X): # checkgradien validation (delta = 1e-15)
         rhoX = np.sum(X ** 2, axis=1)
         return np.dot(L, X) + alpha * np.dot(np.diag(np.dot(np.linalg.inv(L), rhoX)), X)
 
