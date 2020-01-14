@@ -73,7 +73,7 @@ class RASR(BaseEstimator, TransformerMixin):
 
     """
 
-    def __init__(self, srate=128, estimator='scm', metric='euclid', n_jobs=1, window_len=0.5,
+    def __init__(self, srate=128, estimator='scm', metric='euclid', window_len=0.5,
                  window_overlap=0.66, blocksize=None, rejection_cutoff=5, max_dimension=0.66):
         """Init."""
         # TODO:
@@ -285,14 +285,7 @@ def _rms(epochs):
         Root Mean Square Amplitude
     """
 
-    Nt, Ns, Ne = epochs.shape
-
-    RMS = np.zeros((Nt, Ne))
-
-    for i in range(Nt):
-        RMS[i, :] = np.sqrt(np.mean(epochs[i, :, :] ** 2, axis=0))
-
-    return RMS
+    return np.sqrt(np.mean(epochs ** 2, axis=1))
 
 
 def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
@@ -426,7 +419,7 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
 
         # for each shape value...
         for k, beta in enumerate(beta_range):
-            bounds = zbounds[k];
+            bounds = zbounds[k]
 
             # evaluate truncated generalized Gaussian pdf at bin centers
             x = bounds[0] + np.linspace(0.5, (nbins - 0.5), num=nbins) / nbins * np.diff(bounds)[0];

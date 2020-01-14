@@ -146,25 +146,30 @@ def pandas_to_mne(data, rate, events=None, montage_kind='standard_1005', unit_fa
     n_chan = len(data.columns)
 
     X = data.copy().values
-    times = data.index
+    # times = data.index
+    times = time_index_to_float_index(data).index
 
-    ch_names = list(data.columns)
+    fix_ch_names = {'Tp9':'TP9', 'Tp10':'TP10'}
+    ch_names = [fix_ch_names.get(ch, ch) for ch in list(data.columns)]
     ch_types = ['eeg'] * n_chan
-    montage = mne.channels.read_montage(montage_kind) if montage_kind is not None else None
+
+    montage = mne.channels.make_standard_montage(montage_kind) if montage_kind is not None else None
+    # montage = mne.channels.read_montage(montage_kind) if montage_kind is not None else None
     # sfreq = estimate_rate(data)
     X *= unit_factor
 
     if events is not None:
         events_onsets = events.index
-        events_labels = events.label.values
-        event_id = {mk: (ii + 1) for ii, mk in enumerate(np.unique(events_labels))}
+        events_labels = events.values
+        events_codes = [e[0].split()[0] for e in events_labels]
+        event_id = {mk: (ii + 1) for ii, mk in enumerate(np.unique(events_codes))}
         ch_names += ['stim']
         ch_types += ['stim']
 
         trig = np.zeros((len(X), 1))
         for ii, m in enumerate(events_onsets):
             ix_tr = np.argmin(np.abs(times - m))
-            trig[ix_tr] = event_id[events_labels[ii]]
+            trig[ix_tr] = event_id[events_codes[ii]]
 
         X = np.c_[X, trig]
     else:
@@ -172,6 +177,8 @@ def pandas_to_mne(data, rate, events=None, montage_kind='standard_1005', unit_fa
 
     info = mne.create_info(ch_names=ch_names, ch_types=ch_types, sfreq=rate, montage=montage)
     info["bads"] = bad_ch
+    # remove NaN
+    X[np.isnan(X)] = np.zeros_like(X)[np.isnan(X)]
     raw = mne.io.RawArray(data=X.T, info=info, verbose=False)
     picks = mne.pick_channels(raw.ch_names, include=[], exclude=["stim"] + bad_ch)
     return raw, event_id, picks
