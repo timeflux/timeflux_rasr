@@ -34,6 +34,7 @@ if __name__ == '__main__':
     - save the figure and results
     """
     test_ind = 0  # for looping though many test_configuration
+    # TODO: use test configuration for looping though different parameters (SPRINT3)
     test_configuration = [{"window_len": 0.5, "window_overlap": 0.66, "rejection_cutoff": 5}]
     Config.results_folder = os.path.join(Config.results_folder, f"test_{test_ind}")
     logging.basicConfig(filename=os.path.join(Config.results_folder, '_output.log'), level=logging.DEBUG)
@@ -143,3 +144,5 @@ if __name__ == '__main__':
                                                mne_eeg_rasr_python[:, 0:max_samples][0]) ** 2)
         mne_eeg_rasr_diff = mne.io.RawArray(data=eeg_rasr_matlab_python_diff, info=mne_eeg_rasr_matlab.info, verbose=False)
         plot_all_mne_data(mne_eeg_rasr_diff, Config.results_folder, title)
+
+        # TODO: output more metrics for large scale analysis (e.g. parameters effect, etc.)

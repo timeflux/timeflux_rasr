@@ -126,7 +126,7 @@ class RASR(BaseEstimator, TransformerMixin):
 
         # TODO: 2D array for sklearn compatibility? (see below)
         if (X.shape[0] > 1) and (len(X.shape) < 3):
-            warnings.warn("RASR.fit(): support only ONE large chunk of data as input, \n "
+            logging.warning("RASR.fit(): support only ONE large chunk of data as input, \n "
                           "            X.shape should be (1, Ns, Ne), assuming X.shape (Ns, Ne)")
             Nt = 1
             Ns, Ne = X.shape  # 2D array (but loosing first dim for trials, not sklearn-friendly)
@@ -136,7 +136,7 @@ class RASR(BaseEstimator, TransformerMixin):
             Nt, Ns, Ne = X.shape  # 3D array (not fully sklearn-compatible). First dim should always be trials.
             X = X.reshape((X.shape[1] * X.shape[0], X.shape[2]))
             if Nt > 1:
-                warnings.warn("RASR.fit(): concatenating all epochs. \n"
+                logging.warning("RASR.fit(): concatenating all epochs. \n"
                                 "            it may cause issues if overlapping")
 
         else:
