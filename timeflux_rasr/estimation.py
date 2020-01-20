@@ -31,7 +31,7 @@ class RASR(BaseEstimator, TransformerMixin):
     srate : float or int (default: 128)
         Sample rate of the data, in Hz.
 
-   rejection_cutoff : float (default: 5)
+   rejection_cutoff : float (default: 3)
         Standard deviation cutoff for rejection. Data portions whose variance is larger
         than this threshold relative to the calibration data are considered missing
         data and will be removed. The most aggressive value that can be used without
@@ -69,15 +69,18 @@ class RASR(BaseEstimator, TransformerMixin):
         .. math:: threshold_ = T: X_{clean} = m ( V^T_{clean} M )^+ V^T X
     """
 
-    def __init__(self, srate=128, estimator='scm', metric='euclid', window_len=0.5,
-                 window_overlap=0.66, blocksize=None, rejection_cutoff=5, max_dimension=0.66):
+    def __init__(self, srate=None, estimator='scm', metric='euclid', window_len=0.5,
+                 window_overlap=0.66, blocksize=None, rejection_cutoff=3, max_dimension=0.66):
         """Init."""
         # TODO:
 
         self.estimator = _check_est(estimator)
         self.window_len = window_len
         self.window_overlap = window_overlap
-        self.srate = srate
+        if srate is None:
+            raise ValueError("Please define sample rate.")
+        else:
+            self.srate = srate
         self.max_dimension = max_dimension
 
         if blocksize is None:
@@ -243,6 +246,7 @@ class RASR(BaseEstimator, TransformerMixin):
 
             R = self.mixing_.dot(spatialfilter).dot(evecs.transpose())
 
+            # TODO: blending loop should be here (requires an additional stepsize parameter)
             Xclean[k, :] = X[k, :].dot(R.transpose())  # suboptimal in term of memory but great for debug
 
         return Xclean
