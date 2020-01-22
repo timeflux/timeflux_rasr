@@ -448,7 +448,6 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
 
     return mu, sig, alpha, beta
 
-
 if __name__ == '__main__':
     doSequential = True
     doTest = True
