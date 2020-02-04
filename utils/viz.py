@@ -6,10 +6,8 @@ import math
 import numpy as np
 
 
-def plot_all_mne_data(raw, output_folder=None, title=None):
+def plot_all_mne_data(raw, output_folder=os.path.expanduser("~"), title="test"):
     """Standardized function to give save all comparison
-
-    TODO: implement here qualitative examination of the data
     """
 
     title_raw = title+"_raw"
@@ -32,7 +30,9 @@ def plot_all_mne_data(raw, output_folder=None, title=None):
     Ne = data.shape[0]
     nb_columns = 6
     nb_rows = math.ceil(Ne/nb_columns)
-    fig, ax = plt.subplots(nb_rows, nb_columns, sharex=True, sharey=True,gridspec_kw={'hspace': 0, 'wspace': 0})
+    fig, ax = plt.subplots(nb_rows, nb_columns, sharex=True, sharey=True, gridspec_kw={'hspace': 0, 'wspace': 0})
+    if len(ax.shape)<2:
+        ax = np.expand_dims(ax, axis=0)
 
     for n in range(Ne):
         n_row = math.floor(n / nb_columns)
@@ -45,7 +45,8 @@ def plot_all_mne_data(raw, output_folder=None, title=None):
         dpi=192, show=False)
     plt.close()
 
-def plot_time_dist(time_table, output_folder=None, title=None):
+
+def plot_time_dist(time_table, output_folder=os.path.expanduser("~"), title="test"):
     """Standardized function to return computational cost given a time_table
     """
     time_table = time_table * 1e3  # convert in ms
