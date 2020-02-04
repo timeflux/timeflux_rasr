@@ -13,9 +13,6 @@ def test_fit_eeg_distribution():
 
     # Comparaison to matlab output
     npt.assert_almost_equal([mu, sig, alpha, beta], [6.4810, 2.6627, 4.4935, 3.5000], decimal=4)
-    npt.assert_almost_equal(sig, 2.6627)
-    npt.assert_almost_equal(alpha, 4.4935)
-    npt.assert_almost_equal(beta, 3.5000)
 
 def test_rasr_rand_fit_transform():
     """test initialization, fit and transform of RASR"""

@@ -383,17 +383,17 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
     # determine the quantile-dependent limits for the grid search and convert everything in samples
 
     # we can generally skip the tail below the lower quantile
-    lower_min = round(min(quantile_range) * n)
+    lower_min = int(round(min(quantile_range) * n))
     # maximum width in samples is the fit interval if all data is clean
-    max_width = round(n * np.diff(quantile_range)[0])
+    max_width = int(round(n * np.diff(quantile_range)[0]))
     # minimum width in samples of the fit interval, as fraction of data
-    min_width = round(min_clean_fraction * n * np.diff(quantile_range)[0])  #
+    min_width = int(round(min_clean_fraction * n * np.diff(quantile_range)[0]))  #
     max_dropout_fraction_n = int(round(max_dropout_fraction * n))
     step_sizes_n = np.round(step_sizes * n).astype(int)
     assert any(step_sizes_n >= 1)   # should be catched earlier but double-checking
 
     # get matrix of shifted data ranges
-    indx = np.arange(lower_min, lower_min + max_dropout_fraction_n + 0.5, step_sizes_n[0])  # epochs start
+    indx = np.arange(lower_min, lower_min + max_dropout_fraction_n + 0.5, step_sizes_n[0]).astype(int)  # epochs start
     assert indx.dtype == "int"
 
     range_ind = np.arange(0, max_width)  # interval indices
