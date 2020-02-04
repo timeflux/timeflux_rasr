@@ -28,10 +28,10 @@ class RASR(BaseEstimator, TransformerMixin):
         distance estimation. Typical usecase is to pass 'logeuclid' metric for
         the mean in order to boost the computional speed and 'riemann' for the
         distance in order to keep the good sensitivity for the classification.
-    srate : float or int (default: 128)
+    srate : float|int (default: 128)
         Sample rate of the data, in Hz.
 
-   rejection_cutoff : float (default: 3)
+   rejection_cutoff : float (default: 3.0)
         Standard deviation cutoff for rejection. Data portions whose variance is larger
         than this threshold relative to the calibration data are considered missing
         data and will be removed. The most aggressive value that can be used without
@@ -70,7 +70,7 @@ class RASR(BaseEstimator, TransformerMixin):
     """
 
     def __init__(self, srate=None, estimator='scm', metric='euclid', window_len=0.5,
-                 window_overlap=0.66, blocksize=None, rejection_cutoff=3, max_dimension=0.66):
+                 window_overlap=0.66, blocksize=None, rejection_cutoff=3.0, max_dimension=0.66):
         """Init."""
         # TODO:
 
@@ -128,22 +128,21 @@ class RASR(BaseEstimator, TransformerMixin):
         """
 
         # TODO: 2D array for sklearn compatibility? (see below)
-        if (X.shape[0] > 1) and (len(X.shape) < 3):
-            logging.warning("RASR.fit(): support only ONE large chunk of data as input, \n "
-                          "            X.shape should be (1, Ns, Ne), assuming X.shape (Ns, Ne)")
-            Nt = 1
-            Ns, Ne = X.shape  # 2D array (but loosing first dim for trials, not sklearn-friendly)
-
-        elif len(X.shape) == 3:
+        shapeX = X.shape
+        if len(shapeX) == 3:
+            # TODO : concatening will be obsolete because epoching will be removed as well as related variables
             # concatenate all epochs
-            Nt, Ns, Ne = X.shape  # 3D array (not fully sklearn-compatible). First dim should always be trials.
-            X = X.reshape((X.shape[1] * X.shape[0], X.shape[2]))
+            Nt, Ns, Ne = shapeX  # 3D array (not fully sklearn-compatible). First dim should always be trials.
+            X = X.reshape((Nt * Ns, Ne))
             if Nt > 1:
                 logging.warning("RASR.fit(): concatenating all epochs. \n"
                                 "            it may cause issues if overlapping")
 
+        elif len(shapeX) == 2:
+            Nt = 1
+            Ns, Ne = shapeX  # 2D array (but loosing first dim for trials, not sklearn-friendly)
+
         else:
-            # TODO: add condition where data X.shape is (Nt, Ns * Ne) but will require additional Ne parameter
             raise ValueError("X.shape should be (1, Ns, Ne) or (Ns, Ne)")
 
         assert Ne < Ns, "number of samples should be higher than number of electrodes, check than \n" \
@@ -203,18 +202,15 @@ class RASR(BaseEstimator, TransformerMixin):
             Cleaned data
         """
         logging.info("RASR.transform(): check input")
-        # TODO: 2D array for sklearn compatibility? (see below)
-        if (X.shape[0] > 1) and (len(X.shape) < 3):
+        shapeX = X.shape
+        if len(shapeX) == 3:
+            Nt, Ns, Ne = shapeX  # 3D array (not fully sklearn-compatible). First dim should always be trials.
+        elif len(shapeX) == 2:
             warnings.warn("RASR.transform(): assuming X.shape (Ns, Ne)")
             Nt = 1
-            Ns, Ne = X.shape  # 2D array (but loosing first dim for trials, not sklearn-friendly)
+            Ns, Ne = shapeX  # 2D array (but loosing first dim for trials, not sklearn-friendly)
             X = np.expand_dims(X, 0)
-
-        elif len(X.shape) == 3:
-            Nt, Ns, Ne = X.shape  # 3D array (not fully sklearn-compatible). First dim should always be trials.
-
         else:
-            # TODO: add condition where data X.shape is (Nt, Ns * Ne) but will require additional Ne parameter
             raise ValueError("X.shape should be (1, Ns, Ne) or (Ns, Ne)")
 
         Xclean = np.zeros((Nt, Ns, Ne))
@@ -230,6 +226,7 @@ class RASR(BaseEstimator, TransformerMixin):
 
         logging.info("RASR.transform(): clean each epoch")
 
+        # TODO: parallelizing the loop for efficiency
         for k in range(Nt):
             # TODO: HAVE BOTH euclidian PCA and Riemannian PCA (PGA) using pymanopt
             evals, evecs = eigh(covmats[k, :])  # compute PCA
@@ -386,17 +383,18 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
     # determine the quantile-dependent limits for the grid search and convert everything in samples
 
     # we can generally skip the tail below the lower quantile
-    lower_min = int(round(min(quantile_range) * n))
+    lower_min = round(min(quantile_range) * n)
     # maximum width in samples is the fit interval if all data is clean
-    max_width = int(round(n * np.diff(quantile_range)[0]))
+    max_width = round(n * np.diff(quantile_range)[0])
     # minimum width in samples of the fit interval, as fraction of data
-    min_width = int(round(min_clean_fraction * n * np.diff(quantile_range)[0]))  #
+    min_width = round(min_clean_fraction * n * np.diff(quantile_range)[0])  #
     max_dropout_fraction_n = int(round(max_dropout_fraction * n))
     step_sizes_n = np.round(step_sizes * n).astype(int)
     assert any(step_sizes_n >= 1)   # should be catched earlier but double-checking
 
     # get matrix of shifted data ranges
-    indx = np.arange(lower_min, lower_min + max_dropout_fraction_n + 0.5, step_sizes_n[0]).astype(int)  # epochs start
+    indx = np.arange(lower_min, lower_min + max_dropout_fraction_n + 0.5, step_sizes_n[0])  # epochs start
+    assert indx.dtype == "int"
 
     range_ind = np.arange(0, max_width)  # interval indices
     Xs = np.zeros((max_width, get_length(indx)))  # preload entire quantile interval matrix
