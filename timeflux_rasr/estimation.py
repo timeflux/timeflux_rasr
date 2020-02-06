@@ -70,7 +70,11 @@ class RASR(BaseEstimator, TransformerMixin):
     """
 
     def __init__(self, srate=None, estimator='scm', metric='euclid', window_len=0.5,
-                 window_overlap=0.66, blocksize=None, rejection_cutoff=3.0, max_dimension=0.66):
+                 window_overlap=0.66, blocksize=None, rejection_cutoff=3.0, max_dimension=0.66,
+                 min_clean_fraction=0.25, max_dropout_fraction=0.1,
+                 quantile_range=np.array([0.022, 0.6]), step_sizes=np.array([0.01, 0.01]),
+                 beta_range=np.arange(1.7, 3.51, 0.15)
+                ):
         """Init."""
         # TODO:
 
@@ -106,6 +110,14 @@ class RASR(BaseEstimator, TransformerMixin):
 
         else:
             raise TypeError('metric must be dict or str')
+
+        self.args_eeg_distribution = {
+            "min_clean_fraction": min_clean_fraction,
+            "max_dropout_fraction": max_dropout_fraction,
+            "quantile_range": quantile_range,
+            "step_sizes": step_sizes,
+            "beta_range": beta_range
+            }
 
     def partial_fit(self, X, y=None):
         """
@@ -182,7 +194,7 @@ class RASR(BaseEstimator, TransformerMixin):
         dist_params = np.zeros((Ne, 4))  # mu, sig, alpha, beta parameters of estimated distribution
 
         for c in range(Ne):
-            dist_params[c, :] = _fit_eeg_distribution(rms_sliding[:, c])
+            dist_params[c, :] = _fit_eeg_distribution(rms_sliding[:, c], **self.args_eeg_distribution)
         self.threshold_ = np.diag(dist_params[:, 0] + self.rejection_cutoff * dist_params[:, 1]).dot(
             np.transpose(evecs))
 
