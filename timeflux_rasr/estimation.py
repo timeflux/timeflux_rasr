@@ -47,7 +47,7 @@ class RASR(BaseEstimator, TransformerMixin):
     window_overlap : float (default: 0.66)
         Window overlap fraction. The fraction of two successive windows that overlaps.
         Higher overlap ensures that fewer artifact portions are going to be missed (but
-        is slower). Default: 0.66
+        is slower). Default: 0.66. Should be higher than 0 (no overlap) and lower than 1 (complete overlap).
     max_dropout_fraction :
         Maximum fraction of windows that can be subject to signal dropouts
         (e.g., sensor unplugged), used for threshold estimation. Default: 0.1
@@ -80,7 +80,10 @@ class RASR(BaseEstimator, TransformerMixin):
 
         self.estimator = _check_est(estimator)
         self.window_len = window_len
-        self.window_overlap = window_overlap
+        if (window_overlap >= 1) | (window_overlap < 0):
+            raise ValueError('Unreasonable window_overlap, valid interval: [0,1[.')
+        else:
+            self.window_overlap = window_overlap
         if srate is None:
             raise ValueError("Please define sample rate.")
         else:
@@ -517,7 +520,7 @@ if __name__ == '__main__':
         Xf = X.dot(evecs)
         logging.info('Elapsed for epoching+covmats+mean+sqrtm+PCA: %.6f ms' % ((time.time() - t) * 1000))
 
-        epochs_sliding = epoch(Xf, window_len, int(window_len * window_overlap), axis=0)
+        epochs_sliding = epoch(Xf, window_len, int(window_len * (1 - window_overlap)), axis=0)
 
         rms_sliding = _rms(epochs_sliding)
         logging.info('Elapsed for ...+RMS: %.6f ms' % ((time.time() - t) * 1000))
