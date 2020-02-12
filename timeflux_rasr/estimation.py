@@ -47,17 +47,23 @@ class RASR(BaseEstimator, TransformerMixin):
     window_overlap : float (default: 0.66)
         Window overlap fraction. The fraction of two successive windows that overlaps.
         Higher overlap ensures that fewer artifact portions are going to be missed (but
-        is slower). Default: 0.66
-    max_dropout_fraction :
-        Maximum fraction of windows that can be subject to signal dropouts
-        (e.g., sensor unplugged), used for threshold estimation. Default: 0.1
-    min_clean_fraction :
-        Minimum fraction of windows that need to be clean, used for threshold
-        estimation. Default: 0.25
-    max_dimension : Maximum dimensionality of artifacts to remove. Up to this many dimensions (or up
+        is slower). Default: 0.66. Should be higher than 0 (no overlap) and lower than 1 (complete overlap).
+    max_dimension : float (default: 0.66)
+        Maximum dimensionality of artifacts to remove. Up to this many dimensions (or up
         to this fraction of dimensions) can be removed for a given data segment. If the
         algorithm needs to tolerate extreme artifacts a higher value than the default
-        may be used (the maximum fraction is 1.0). Default 0.66
+        may be used (the maximum fraction is 1.0).
+    max_dropout_fraction : float (default: 0.1)
+        Maximum fraction of windows that can be subject to signal dropouts
+        (e.g., sensor unplugged), used for threshold estimation in _fit_eeg_distribution.
+    min_clean_fraction : float (default: 0.25)
+        Minimum fraction of windows that need to be clean, used for threshold
+        estimation in _fit_eeg_distribution.
+    #TODO: find a best way to pass parameters without copy/pasting the _fit_eeg_distribution docstring
+    quantile_range, step_sizes, beta_range:
+        additional parameters passed to _fit_eeg_distribution (should be kept as default in general).
+        #
+
 
     Attributes
     ----------
@@ -70,13 +76,20 @@ class RASR(BaseEstimator, TransformerMixin):
     """
 
     def __init__(self, srate=None, estimator='scm', metric='euclid', window_len=0.5,
-                 window_overlap=0.66, blocksize=None, rejection_cutoff=3.0, max_dimension=0.66):
+                window_overlap=0.66, blocksize=None, rejection_cutoff=3.0, max_dimension=0.66,
+                min_clean_fraction=0.25, max_dropout_fraction=0.1,
+                quantile_range=np.array([0.022, 0.6]), step_sizes=np.array([0.01, 0.01]),
+                beta_range=np.arange(1.7, 3.51, 0.15)
+                ):
         """Init."""
         # TODO:
 
         self.estimator = _check_est(estimator)
         self.window_len = window_len
-        self.window_overlap = window_overlap
+        if (window_overlap >= 1) | (window_overlap < 0):
+            raise ValueError('Unreasonable window_overlap, valid interval: [0,1[.')
+        else:
+            self.window_overlap = window_overlap
         if srate is None:
             raise ValueError("Please define sample rate.")
         else:
@@ -106,6 +119,14 @@ class RASR(BaseEstimator, TransformerMixin):
 
         else:
             raise TypeError('metric must be dict or str')
+
+        self.args_eeg_distribution = {
+            "min_clean_fraction": min_clean_fraction,
+            "max_dropout_fraction": max_dropout_fraction,
+            "quantile_range": quantile_range,
+            "step_sizes": step_sizes,
+            "beta_range": beta_range
+            }
 
     def partial_fit(self, X, y=None):
         """
@@ -182,7 +203,7 @@ class RASR(BaseEstimator, TransformerMixin):
         dist_params = np.zeros((Ne, 4))  # mu, sig, alpha, beta parameters of estimated distribution
 
         for c in range(Ne):
-            dist_params[c, :] = _fit_eeg_distribution(rms_sliding[:, c])
+            dist_params[c, :] = _fit_eeg_distribution(rms_sliding[:, c], **self.args_eeg_distribution)
         self.threshold_ = np.diag(dist_params[:, 0] + self.rejection_cutoff * dist_params[:, 1]).dot(
             np.transpose(evecs))
 
@@ -450,74 +471,3 @@ def _fit_eeg_distribution(X, min_clean_fraction=0.25, max_dropout_fraction=0.1,
     sig = np.sqrt((alpha ** 2) * gamma(3 / beta) / gamma(1 / beta))
 
     return mu, sig, alpha, beta
-
-
-if __name__ == '__main__':
-    # TODO: remove all following section and put it into pytest
-    # NOTE(Louis): I don't know exatly how to do the sequential testing with pytest without saving in attributes
-    import time
-
-    doSequential = True
-    logging.info("TEST rASR: prepare data")
-
-    C = 4
-    S = int(1e5)
-    srate = 128
-    window_len = int(round(srate * 0.5))
-    window_overlap = 0.66
-
-    mean = np.zeros(C)
-    cov = [np.random.uniform(0.1, 5, C) for i in range(C)]
-    cov = np.dot(np.array(cov), np.transpose(np.array(cov)))
-    X = np.random.multivariate_normal(mean, cov, (S,))
-
-    X[:, -1] += (np.random.randint(0, 1000, (S,)) > 995) * 1000  # artefact with 0.5 % chance
-
-    if doSequential:
-        logging.info("TEST rASR estimation and checking computation time and each step")
-
-        blocksize = int(round(srate * 0.5))
-
-        t = time.time()
-
-        epochs = epoch(X, blocksize, blocksize, axis=0)
-
-        logging.info('Elapsed for epoching: %.6f ms' % ((time.time() - t) * 1000))
-
-        covmats = covariances(np.swapaxes(epochs, 1, 2))  # (n_trials, n_channels, n_times)
-        logging.info('Elapsed for epoching+covmats: %.6f ms' % ((time.time() - t) * 1000))
-
-        # meancovs = mean_covariance(covmats, metric='euclid')
-        meancovs = np.reshape(geometric_median(
-            np.reshape(covmats,
-                       (covmats.shape[0], covmats.shape[1] * covmats.shape[2])
-                       )
-        ), (covmats.shape[1], covmats.shape[2])
-        )
-        logging.info('Elapsed for epoching+covmats+mean: %.6f ms' % ((time.time() - t) * 1000))
-
-        mixing = sqrtm(meancovs)
-        logging.info('Elapsed for epoching+covmats+mean+sqrtm: %.6f ms' % ((time.time() - t) * 1000))
-
-        evals, evecs = eigh(mixing)
-        indx = np.argsort(evals)  # sort in ascending
-        evecs = evecs[:, indx]
-        Xf = X.dot(evecs)
-        logging.info('Elapsed for epoching+covmats+mean+sqrtm+PCA: %.6f ms' % ((time.time() - t) * 1000))
-
-        epochs_sliding = epoch(Xf, window_len, int(window_len * window_overlap), axis=0)
-
-        rms_sliding = _rms(epochs_sliding)
-        logging.info('Elapsed for ...+RMS: %.6f ms' % ((time.time() - t) * 1000))
-
-        dist_params = np.zeros((C, 4))  # mu, sig, alpha, beta parameters of estimated distribution
-
-        for c in range(C):
-            dist_params[c, :] = _fit_eeg_distribution(rms_sliding[:, c])
-        logging.info('Elapsed for ...+eeg_fit: %.6f ms' % ((time.time() - t) * 1000))
-
-        # test median methods
-
-        points = np.random.uniform(1e-15, 1, (300, 16))
-
-        points_med = geometric_median(points)
