@@ -383,8 +383,11 @@ def _fit_eeg_distribution(X, min_clean_fraction=None, max_dropout_fraction=None,
 
     # check valid parameters
     n = len(X)
+    quantile_range = np.array(quantile_range)
+    step_sizes = np.array(step_sizes)
+    beta_range = np.array(beta_range)
 
-    if len(quantile_range) > 2:
+    if not len(quantile_range) == 2:
         raise ValueError('quantile_range needs to be a 2-elements vector.')
     if any(quantile_range > 1) | any(quantile_range < 0):
         raise ValueError('Unreasonable quantile_range.')
