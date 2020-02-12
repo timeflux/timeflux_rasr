@@ -5,6 +5,7 @@ import logging
 from sklearn.pipeline import Pipeline
 from timeflux_rasr.estimation import _fit_eeg_distribution
 import numpy.testing as npt
+from sklearn.utils.estimator_checks import check_estimator
 
 def test_fit_eeg_distribution():
     X = np.arange(1, 1001) ** 2 / 10000
@@ -13,6 +14,13 @@ def test_fit_eeg_distribution():
 
     # Comparaison to matlab output
     npt.assert_almost_equal([mu, sig, alpha, beta], [6.4810, 2.6627, 4.4935, 3.5000], decimal=4)
+
+# def test_rasr_parameters():
+#     pipeline = RASR(srate = 2, step_sizes=[0.1, 0.1])
+#     check_estimator(pipeline)
+#
+# def test_rasr_sklearn():
+#     check_estimator(RASR(srate=2, window_overlap=0.99, step_sizes=[0.1, 0.1]))
 
 def test_rasr_rand_fit_transform():
     """test initialization, fit and transform of RASR"""
