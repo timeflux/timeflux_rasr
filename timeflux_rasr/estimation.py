@@ -18,6 +18,9 @@ class RASR(BaseEstimator, TransformerMixin):
 
     Parameters
     ----------
+    srate : float|int
+        Sample rate of the data, in Hz.
+
     estimator : string (default: 'scm')
         covariance matrix estimator. For regularization consider 'lwf' or 'oas'
         For a complete list of estimator, see `pyriemann.utils.covariance`
@@ -29,9 +32,6 @@ class RASR(BaseEstimator, TransformerMixin):
         distance estimation. Typical usecase is to pass 'logeuclid' metric for
         the mean in order to boost the computional speed and 'riemann' for the
         distance in order to keep the good sensitivity for the classification.
-    srate : float|int (default: 128)
-        Sample rate of the data, in Hz.
-
    rejection_cutoff : float (default: 3.0)
         Standard deviation cutoff for rejection. Data portions whose variance is larger
         than this threshold relative to the calibration data are considered missing
@@ -68,6 +68,8 @@ class RASR(BaseEstimator, TransformerMixin):
 
     Attributes
     ----------
+    Ne_ : int
+        The dimension managed by the fitted RASR, e.g. number of electrodes.
     mixing_ : ndarray, shape(n_chan, n_chan)
         Mixing matrix computed from geometric median covariance matrix U such as
         .. math:: mixing_ = M: M*M = U
@@ -81,7 +83,6 @@ class RASR(BaseEstimator, TransformerMixin):
                 **kwargs
                 ):
         """Init."""
-        # TODO:
 
         self.estimator = _check_est(estimator)
         self.window_len = window_len
@@ -287,7 +288,12 @@ class RASR(BaseEstimator, TransformerMixin):
 
 
 def _rms(epochs):
-    """ Estimate Root Mean Square Amplitude for each epoch and each electrode
+    """ Estimate Root Mean Square Amplitude for each epoch and each electrode.
+
+    .. math::
+
+        rms = \sqrt{(\frac{1}{n})\sum_{i=1}^{n}(x_{i})^{2}}
+
     Parameters
     ----------
     epochs : ndarray, shape (n_trials, n_samples, n_electrodes)

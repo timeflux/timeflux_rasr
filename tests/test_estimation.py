@@ -13,19 +13,22 @@ def test_fit_eeg_distribution_values():
     # Comparaison to matlab output
     npt.assert_almost_equal([mu, sig, alpha, beta], [6.4810, 2.6627, 4.4935, 3.5000], decimal=4)
 
-def test_fit_eeg_distribution_valid_params():
-
+def test_fit_eeg_distribution_invalid_params():
     with pytest.raises(ValueError, match="X needs to be a 1D ndarray."):
         _fit_eeg_distribution(np.random.randn(2,1))  # the user should squeeze the array
 
     with pytest.raises(ValueError, match='quantile_range needs to be a 2-elements vector.'):
-        _fit_eeg_distribution(np.random.randn(100), quantile_range=[7])
+        _fit_eeg_distribution(np.random.randn(100), quantile_range=[0.1])
 
     with pytest.raises(ValueError, match='Unreasonable quantile_range.'):
-        _fit_eeg_distribution(np.random.randn(100), quantile_range=[0, 10])
+        _fit_eeg_distribution(np.random.randn(100), quantile_range=[0.1, 10])
+    with pytest.raises(ValueError, match='Unreasonable quantile_range.'):
+        _fit_eeg_distribution(np.random.randn(100), quantile_range=[-0.1, 0.9])
 
     with pytest.raises(ValueError, match='Unreasonable step sizes.'):
         _fit_eeg_distribution(np.random.randn(100), step_sizes=[0.2, 0.1])
+    with pytest.raises(ValueError, match='Unreasonable step sizes.'):
+        _fit_eeg_distribution(np.random.randn(100), step_sizes=[0.1, 0.00001])
 
     with pytest.raises(ValueError):
         _fit_eeg_distribution(np.random.randn(50))  # too small value
@@ -33,6 +36,8 @@ def test_fit_eeg_distribution_valid_params():
 
     with pytest.raises(ValueError, match='Unreasonable shape range.'):
         _fit_eeg_distribution(np.random.randn(100), beta_range=[0.2, 2])
+    with pytest.raises(ValueError, match='Unreasonable shape range.'):
+        _fit_eeg_distribution(np.random.randn(100), beta_range=[1, 10])
 
 def test_rms():
     X = np.array([

@@ -2,7 +2,7 @@
 It is a refactoring of the jupyter notebook and it is extended to include more advanced metrics and figure outputs.
 """
 
-from utils.config import Config
+from utils.config import Config as cfg
 import mne
 from mne.io import read_raw_eeglab
 import seaborn as sns
@@ -17,7 +17,7 @@ import logging
 import os
 from timeit import default_timer as timer
 import numpy as np
-
+Config = cfg()      # initialize class
 sns.set(font_scale=1)
 logging.info("Config LOADED")
 
@@ -36,8 +36,8 @@ if __name__ == '__main__':
     # TODO: use test configuration for looping though different parameters (SPRINT3)
     test_configuration = [{"window_len": 0.5, "window_overlap": 0.66, "rejection_cutoff": 3},
                           {"window_len": 0.5, "window_overlap": 0.66, "rejection_cutoff": 5},
-                          {"window_len": 3, "window_overlap": 0.66, "rejection_cutoff": 3},
-                          {"window_len": 3, "window_overlap": 0.66, "rejection_cutoff": 5}]
+                          {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 3},
+                          {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 5}]
     for test_ind in range(len(test_configuration)):  # for looping though many test_configuration
 
         Config.results_folder = os.path.join(Config.results_folder, f"test_{test_ind}")

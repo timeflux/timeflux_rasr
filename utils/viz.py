@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import os
 import math
 import numpy as np
+import mne
 
 
 def plot_all_mne_data(raw, output_folder=os.path.expanduser("~"), title="test"):
@@ -18,7 +19,7 @@ def plot_all_mne_data(raw, output_folder=os.path.expanduser("~"), title="test"):
 
     title_psd = title+"_psd"
 
-    raw.plot_psd().savefig(
+    mne.viz.plot_raw_psd(raw,show=False).savefig(
         os.path.join(output_folder, title_psd),
         dpi=192, show=False)
     plt.close()
