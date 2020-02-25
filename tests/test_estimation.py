@@ -114,6 +114,13 @@ def test_rasr_invalid_params():
         pipeline = RASR()
         pipeline.fit_transform(X)
 
+    with pytest.raises(ValueError, match="X.shape should be \(n_trials, n_samples, n_electrodes\)."):
+        np.random.seed(seed=42)
+        X = np.random.randn(100, 100, 8)
+        pipeline = RASR()
+        pipeline.fit(X)
+        pipeline.transform(X[-1,: , :])
+
 
 
 # TODO: test_rasr_error_1              # test wrong size input
