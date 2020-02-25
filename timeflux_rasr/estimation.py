@@ -18,37 +18,14 @@ class RASR(BaseEstimator, TransformerMixin):
 
     Parameters
     ----------
-    srate : float|int
-        Sample rate of the data, in Hz.
-
     estimator : string (default: 'scm')
         covariance matrix estimator. For regularization consider 'lwf' or 'oas'
         For a complete list of estimator, see `pyriemann.utils.covariance`
-    metric : string | dict (default: 'riemann')
-        The type of metric used for centroid and distance estimation.
-        see `mean_covariance` for the list of supported metric.
-        the metric could be a dict with two keys, `mean` and `distance` in
-        order to pass different metric for the centroid estimation and the
-        distance estimation. Typical usecase is to pass 'logeuclid' metric for
-        the mean in order to boost the computional speed and 'riemann' for the
-        distance in order to keep the good sensitivity for the classification.
-   rejection_cutoff : float (default: 3.0)
+    rejection_cutoff : float (default: 3.0)
         Standard deviation cutoff for rejection. Data portions whose variance is larger
         than this threshold relative to the calibration data are considered missing
         data and will be removed. The most aggressive value that can be used without
         losing too much EEG is 2.5. A quite conservative value would be 5.
-    blocksize : int (default: 10)
-        Block size for calculating the robust data covariance and thresholds, in samples;
-        allows to reduce the memory and time requirements of the robust estimators by this
-        factor (down to Channels x Channels x Samples x 16 / blocksize bytes). Default: 10
-    window_len : float (default: 0.5)
-        Window length in second that is used to check the data for artifact content. This is
-        ideally as long as the expected time scale of the artifacts but short enough to
-        allow for several 1000 windows to compute statistics over. Default: 0.5.
-    window_overlap : float (default: 0.66)
-        Window overlap fraction. The fraction of two successive windows that overlaps.
-        Higher overlap ensures that fewer artifact portions are going to be missed (but
-        is slower). Default: 0.66. Should be higher than 0 (no overlap) and lower than 1 (complete overlap).
     max_dimension : float (default: 0.66)
         Maximum dimensionality of artifacts to remove. Up to this many dimensions (or up
         to this fraction of dimensions) can be removed for a given data segment. If the
@@ -60,10 +37,8 @@ class RASR(BaseEstimator, TransformerMixin):
     min_clean_fraction : float (default: 0.25)
         Minimum fraction of windows that need to be clean, used for threshold
         estimation in _fit_eeg_distribution.
-    #TODO: find a best way to pass parameters without copy/pasting the _fit_eeg_distribution docstring
-    quantile_range, step_sizes, beta_range:
+    quantile_range, step_sizes, beta_range :
         additional parameters passed to _fit_eeg_distribution (should be kept as default in general).
-        #
 
 
     Attributes
@@ -78,49 +53,14 @@ class RASR(BaseEstimator, TransformerMixin):
         .. math:: threshold_ = T: X_{clean} = m ( V^T_{clean} M )^+ V^T X
     """
 
-    def __init__(self, srate=None, estimator='scm', metric='euclid', window_len=0.5,
-                window_overlap=0.66, blocksize=None, rejection_cutoff=3.0, max_dimension=0.66,
-                **kwargs
-                ):
+    def __init__(self, estimator='scm', rejection_cutoff=3.0, max_dimension=0.66, **kwargs):
         """Init."""
 
         self.estimator = _check_est(estimator)
-        self.window_len = window_len
-        if (window_overlap >= 1) | (window_overlap < 0):
-            raise ValueError('Unreasonable window_overlap, valid interval: [0,1[.')
-        else:
-            self.window_overlap = window_overlap
-        if srate is None:
-            raise ValueError("Please define sample rate.")
-        else:
-            self.srate = srate
+
         self.max_dimension = max_dimension
 
-        if blocksize is None:
-            self.blocksize = int(round(self.srate * 0.5))  # 500 ms of signal
-        else:
-            self.blocksize = int(round(blocksize))
-
         self.rejection_cutoff = rejection_cutoff
-
-        # initialize metrics
-        if metric is None:
-            self.metric_mean = 'euclid'
-            self.metric_dist = 'euclid'
-        elif isinstance(metric, str):
-            self.metric_mean = metric
-            self.metric_dist = metric  # unused for now
-        elif isinstance(metric, dict):
-            # check keys
-            for key in ['mean', 'distance']:
-                if key not in metric.keys():
-                    raise KeyError('metric must contain "mean" and "distance"')
-
-            self.metric_mean = metric['mean']
-            self.metric_dist = metric['distance']
-
-        else:
-            raise TypeError('metric must be dict or str')
 
         self.args_eeg_distribution = kwargs
         self.Ne_ = None  # will be initialized during training
@@ -144,16 +84,15 @@ class RASR(BaseEstimator, TransformerMixin):
         if len(shapeX) == 3:
             # concatenate all epochs
             Nt, Ns, Ne = shapeX  # 3D array (not fully sklearn-compatible). First dim should always be trials.
-
-        elif len(shapeX) == 2:
-            raise ValueError("X.shape should be (N_trials, N_samples, N_electrodes).")
-        elif shapeX[0] < 100:
-            raise ValueError("Training requires at least 100 of trials to fit.")
         else:
-            raise ValueError("X.shape should be (N_trials, N_samples, N_electrodes).")
+            raise ValueError("X.shape should be (n_trials, n_samples, n_electrodes).")
 
         assert Ne < Ns, "number of samples should be higher than number of electrodes, check than \n" \
-                        + "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) "
+                        + "X.shape is (n_trials,  n_samples, n_channels)."
+
+        if shapeX[0] < 100:
+            raise ValueError("Training requires at least 100 of trials to fit.")
+
         self.Ne_ = Ne   # save attribute for testing
 
         epochs = X.copy()
@@ -182,13 +121,14 @@ class RASR(BaseEstimator, TransformerMixin):
         evals, evecs = eigh(self.mixing_)  # compute PCA
         indx = np.argsort(evals)  # sort in ascending
         evecs = evecs[:, indx]
-        epochs = np.tensordot(epochs, evecs, axes=((2),(0)))  # apply PCA
+        epochs = np.tensordot(epochs, evecs, axes=(2, 0))  # apply PCA to epochs
 
         # RMS on sliding window
         rms_sliding = _rms(epochs)
 
         dist_params = np.zeros((Ne, 4))  # mu, sig, alpha, beta parameters of estimated distribution
 
+        #TODO: use joblib to parrallelize this loop (code bottleneck)
         for c in range(Ne):
             dist_params[c, :] = _fit_eeg_distribution(rms_sliding[:, c], **self.args_eeg_distribution)
         self.threshold_ = np.diag(dist_params[:, 0] + self.rejection_cutoff * dist_params[:, 1]).dot(
@@ -215,25 +155,18 @@ class RASR(BaseEstimator, TransformerMixin):
         shapeX = X.shape
 
         if len(shapeX) == 3:
-            Nt, Ns, Ne = shapeX  # 3D array (not fully sklearn-compatible). First dim should always be trials.
-        elif len(shapeX) == 2:
-            warnings.warn("RASR.transform(): assuming X.shape (Ns, Ne)")
-            Nt = 1
-            Ns, Ne = shapeX  # 2D array (but loosing first dim for trials, not sklearn-friendly)
-            X = np.expand_dims(X, 0)
+            Nt, Ns, Ne = shapeX
         else:
-            raise ValueError("X.shape should be (1, Ns, Ne) or (Ns, Ne)")
+            raise ValueError("X.shape should be (n_trials, n_samples, n_electrodes).")
 
         Xclean = np.zeros((Nt, Ns, Ne))
 
         assert Ne < Ns, "number of samples should be higher than number of electrodes, check than \n" \
-                        + "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) "
+                        + "X.shape is (n_trials,  n_samples, n_channels)."
 
         logging.info("RASR.transform(): compute covariances")
 
         covmats = covariances(np.swapaxes(X, 1, 2), estimator=self.estimator)  # (n_trials, n_channels, n_times)
-
-        # TODO: update the mean covariance (required for online update) only in partial_fit ?
 
         logging.info("RASR.transform(): clean each epoch")
 
@@ -241,7 +174,6 @@ class RASR(BaseEstimator, TransformerMixin):
         for k in range(Nt):
             # TODO: HAVE BOTH euclidian PCA and Riemannian PCA (PGA) using pymanopt
             evals, evecs = eigh(covmats[k, :])  # compute PCA
-            # TODO: comment in matlab "use eigenvalues in descending order" but actually is doing in ascending
             indx = np.argsort(evals)  # sort in ascending
             evecs = evecs[:, indx]
 
@@ -254,7 +186,6 @@ class RASR(BaseEstimator, TransformerMixin):
 
             R = self.mixing_.dot(spatialfilter).dot(evecs.transpose())
 
-            # TODO: blending loop should be here (requires an additional stepsize parameter)
             Xclean[k, :] = X[k, :].dot(R.transpose())  # suboptimal in term of memory but great for debug
 
         return Xclean

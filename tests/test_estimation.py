@@ -61,7 +61,7 @@ def test_tensordot():
         Ap[k, :, :] = A[k, :, :].dot(B)
     npt.assert_array_almost_equal(Ap, expecteddot)
 
-    Ap2 = np.tensordot(A, B, axes=((2), (0)))
+    Ap2 = np.tensordot(A, B, axes=(2, 0))
     npt.assert_array_almost_equal(Ap2, expecteddot)
 
     # left-hand side
@@ -70,23 +70,21 @@ def test_tensordot():
         Ap3[k, :, :] = B.T.dot(np.transpose(A, axes=[0, 2, 1])[k, :, :]).T
     npt.assert_array_almost_equal(Ap3, expecteddot)
 
-    Ap4 = np.tensordot(B, np.transpose(A, axes=[0, 2, 1]), axes=((0), (1)))
+    Ap4 = np.tensordot(B, np.transpose(A, axes=[0, 2, 1]), axes=(0, 1))
     B.T.dot(np.transpose(A, axes=[0, 2, 1]))
 
 
 def test_rasr_rand_fit_transform():
     """test initialization, fit and transform of RASR"""
     np.random.seed(seed=42)
-    srate = 32
-    X = np.random.randn(100, 1 * srate, 8)
-    pipeline = RASR(srate=srate)
+    X = np.random.randn(100, 32, 8)
+    pipeline = RASR()
     pipeline.fit_transform(X)
 
 def test_rasr_rand_fit_transform_training_test():
     """test initialization, fit and transform of RASR"""
     np.random.seed(seed=42)
-    srate = 250
-    X = np.random.randn(150, 1 * srate, 8)
+    X = np.random.randn(150, 250, 8)
     Xtrain = X[0:100, :, :]
     Xtest  = X[100:, :, :]
 
@@ -94,7 +92,7 @@ def test_rasr_rand_fit_transform_training_test():
     logging.info("Test RASR: random pipeline...")
 
     pipeline = Pipeline([
-        ("RASR", RASR(srate=srate))
+        ("RASR", RASR())
     ])
 
     pipeline.fit(Xtrain)
@@ -102,29 +100,23 @@ def test_rasr_rand_fit_transform_training_test():
     Xclean = pipeline.transform(Xtest)
     logging.info("Test RASR: transformed random pipeline")
 
-def test_rasr_missing_params():
-    """test that exception is raised for missing params"""
-    with pytest.raises(ValueError, match="Please define sample rate."):
-        assert RASR()
-
 def test_rasr_invalid_params():
     """test that exception is raised for invalid params"""
-    with pytest.raises(ValueError, match="X.shape should be (N_trials, N_samples, N_electrodes)."):
-        np.random.seed(seed=42)
-        srate = 100
-        X = np.random.randn(srate * 1, 8)
-        pipeline = RASR(srate=srate)
-        pipeline.fit_transform(X)
-
     with pytest.raises(ValueError, match="Training requires at least 100 of trials to fit."):
         np.random.seed(seed=42)
-        srate = 100
-        X = np.random.randn(10, srate * 1, 8)
-        pipeline = RASR(srate=srate)
+        X = np.random.randn(10, 100, 8)
+        pipeline = RASR()
         pipeline.fit_transform(X)
 
+    with pytest.raises(ValueError, match="X.shape should be \(n_trials, n_samples, n_electrodes\)."):
+        np.random.seed(seed=42)
+        X = np.random.randn(100, 8)
+        pipeline = RASR()
+        pipeline.fit_transform(X)
+
+
+
 # TODO: test_rasr_error_1              # test wrong size input
-# TODO: test_rasr_error_2              # test wrong parameters (blocksize too low, window_len too low, etc.)
 # TODO: test_rasr_error_3              # test when singular matrix as input
 # TODO: test_rms                       # test output from a given matrix
 # TODO: test_rasr_output1              # test with fixed seed and parameters output (see below)
