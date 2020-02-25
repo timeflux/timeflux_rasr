@@ -123,6 +123,7 @@ class RASR(BaseEstimator, TransformerMixin):
             raise TypeError('metric must be dict or str')
 
         self.args_eeg_distribution = kwargs
+        self.Ne_ = None  # will be initialized during training
 
     def fit(self, X, y=None):
         """
@@ -139,41 +140,33 @@ class RASR(BaseEstimator, TransformerMixin):
             the fitted RASR estimator.
         """
         X = check_array(X, allow_nd=True)
-        # TODO: 2D array for sklearn compatibility? (see below)
         shapeX = X.shape
         if len(shapeX) == 3:
-            # TODO : concatening will be obsolete because epoching will be removed as well as related variables
             # concatenate all epochs
             Nt, Ns, Ne = shapeX  # 3D array (not fully sklearn-compatible). First dim should always be trials.
-            X = X.reshape((Nt * Ns, Ne))
-            if Nt > 1:
-                logging.warning("RASR.fit(): concatenating all epochs. \n"
-                                "            it may cause issues if overlapping")
 
         elif len(shapeX) == 2:
-            Nt = 1
-            Ns, Ne = shapeX  # 2D array (but loosing first dim for trials, not sklearn-friendly)
-
+            raise ValueError("X.shape should be (N_trials, N_samples, N_electrodes).")
+        elif shapeX[0] < 100:
+            raise ValueError("Training requires at least 100 of trials to fit.")
         else:
-            raise ValueError("X.shape should be (1, Ns, Ne) or (Ns, Ne)")
+            raise ValueError("X.shape should be (N_trials, N_samples, N_electrodes).")
 
         assert Ne < Ns, "number of samples should be higher than number of electrodes, check than \n" \
                         + "X.shape is (n_trials,  n_samples, n_channels) or (n_samples, n_channels) "
         self.Ne_ = Ne   # save attribute for testing
 
-        # TODO: This section will be removed
-        # epoching
-        logging.info("epoching")
-        epochs = epoch(X, self.blocksize, self.blocksize, axis=0)
+        epochs = X.copy()
         epochs = check_array(epochs, allow_nd=True)
 
         # estimate covariances matrices
         covmats = covariances(np.swapaxes(epochs, 1, 2), estimator=self.estimator)  # (n_trials, n_channels, n_times)
         covmats = check_array(covmats, allow_nd=True)
 
-        # geometric median (maybe not best with double reshape) but implement as is in matlab
+        # geometric median
         # NOTE: while the term geometric median is used, it is NOT riemannian median but euclidian median, i.e.
         # it might be suboptimal for Symmetric Positive Definite matrices.
+
         logging.info("geometric median")
         # covmean = mean_covariance(covmats, metric=self.metric_mean)
         covmean = np.reshape(geometric_median(
@@ -189,14 +182,10 @@ class RASR(BaseEstimator, TransformerMixin):
         evals, evecs = eigh(self.mixing_)  # compute PCA
         indx = np.argsort(evals)  # sort in ascending
         evecs = evecs[:, indx]
-        filtered_x = X.dot(evecs)  # apply PCA
+        epochs = np.tensordot(epochs, evecs, axes=((2),(0)))  # apply PCA
 
         # RMS on sliding window
-        window_samples = int(round(self.window_len * self.srate))
-        if window_samples < 1:
-            raise ValueError("window_len too low compared to srate, please increase value")
-        epochs_sliding = epoch(filtered_x, window_samples, max(int(window_samples * self.window_overlap), 1), axis=0)
-        rms_sliding = _rms(epochs_sliding)
+        rms_sliding = _rms(epochs)
 
         dist_params = np.zeros((Ne, 4))  # mu, sig, alpha, beta parameters of estimated distribution
 
