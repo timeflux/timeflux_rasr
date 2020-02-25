@@ -121,7 +121,14 @@ def test_rasr_invalid_params():
         pipeline.fit(X)
         pipeline.transform(X[-1,: , :])
 
-
+def test_rasr_unknown_params():
+    with pytest.raises(TypeError, match="_fit_eeg_distribution\(\) got an unexpected keyword argument 'unknown_param'"):
+        # params are passed to _fit_eeg_distribution()
+        np.random.seed(seed=42)
+        X = np.random.randn(100, 100, 8)
+        dict_of_params = dict(rejection_cutoff=4.0, max_dimension=0.33, unknown_param=10)
+        pipeline = RASR(**dict_of_params)
+        pipeline.fit(X)
 
 # TODO: test_rasr_error_1              # test wrong size input
 # TODO: test_rasr_error_3              # test when singular matrix as input

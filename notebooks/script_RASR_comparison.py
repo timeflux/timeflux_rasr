@@ -9,7 +9,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from pyxdf import load_xdf
 from utils.utils import (epoch, get_stream_names, extract_signal_stream, float_index_to_time_index, estimate_rate,
-                pandas_to_mne)
+                         pandas_to_mne)
 from sklearn.pipeline import make_pipeline
 from timeflux_rasr.estimation import RASR
 from utils.viz import (plot_all_mne_data, plot_time_dist)
@@ -17,7 +17,8 @@ import logging
 import os
 from timeit import default_timer as timer
 import numpy as np
-Config = cfg()      # initialize class
+
+Config = cfg()  # initialize class
 sns.set(font_scale=1)
 logging.info("Config LOADED")
 
@@ -85,7 +86,7 @@ if __name__ == '__main__':
 
             size = int(test_configuration[test_ind]["srate"]
                        * test_configuration[test_ind]["window_len"])  # size of window in samples
-            interval = size  # step interval in samples
+            interval = int(size * (1 - test_configuration[test_ind]["window_overlap"]))  # step interval in samples
 
             # convert filtered data into epochs
             np_eeg_filtered_epochs = epoch(df_eeg_filtered, size, interval, axis=0)  # (n_channels,  n_times, n_trials)
@@ -113,7 +114,7 @@ if __name__ == '__main__':
             start = timer()
             rASR_pipeline = rASR_pipeline.fit(X_fit)
             end = timer()
-            print(f"test_{test_ind}: Pipeline fitted in {end-start}s ({(end-start)/X_fit.shape[0]}s/epoch)")
+            print(f"test_{test_ind}: Pipeline fitted in {end - start}s ({(end - start) / X_fit.shape[0]}s/epoch)")
 
             X_test_transformed = np.zeros(X_test.shape)
             start = timer()
@@ -123,16 +124,15 @@ if __name__ == '__main__':
                 X_test_transformed[n_epoch, :, :] = rASR_pipeline.transform(X_test[[n_epoch], :, :])
                 time_table[n_epoch] = timer() - start_in
             end = timer()
-            print(f"test_{test_ind}: Pipeline transform in {end-start}s ({(end-start)/X_fit.shape[0]}s/epoch)")
+            print(f"test_{test_ind}: Pipeline transform in {end - start}s ({(end - start) / X_fit.shape[0]}s/epoch)")
             title = f"s{k_file}_transform_computational_time"
             plot_time_dist(time_table, output_folder=Config.results_folder, title=title)
-
 
             mne_eeg_rasr_info = mne_eeg_filtered.info
             data = X_test_transformed.reshape(X_test_transformed.shape[0] * X_test_transformed.shape[1], -1).transpose()
             mne_eeg_rasr_python = mne.io.RawArray(data * 1e-6, mne_eeg_rasr_info)
 
-            #comparison
+            # comparison
             title = f"s{k_file}_filtered"
             plot_all_mne_data(mne_eeg_filtered, Config.results_folder, title)
 
@@ -156,7 +156,8 @@ if __name__ == '__main__':
             max_samples = min(len(mne_eeg_rasr_matlab), len(mne_eeg_rasr_python)) - 1
             eeg_rasr_matlab_python_diff = np.sqrt((mne_eeg_rasr_matlab[:, 0:max_samples][0] -
                                                    mne_eeg_rasr_python[:, 0:max_samples][0]) ** 2)
-            mne_eeg_rasr_diff = mne.io.RawArray(data=eeg_rasr_matlab_python_diff, info=mne_eeg_rasr_matlab.info, verbose=False)
+            mne_eeg_rasr_diff = mne.io.RawArray(data=eeg_rasr_matlab_python_diff, info=mne_eeg_rasr_matlab.info,
+                                                verbose=False)
             plot_all_mne_data(mne_eeg_rasr_diff, Config.results_folder, title)
 
             # TODO: output more metrics for large scale analysis (e.g. parameters effect, etc.)
