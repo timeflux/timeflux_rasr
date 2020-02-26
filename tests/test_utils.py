@@ -1,7 +1,9 @@
 import pytest
 import numpy as np
 import numpy.testing as npt
-from utils.utils import epoch, geometric_median
+from utils.utils import epoch, geometric_median, check_params
+import inspect
+from timeflux_rasr.estimation import _fit_eeg_distribution
 
 # TODO: pytest for timeflux specific utils (not used in the RASR module)
 """ list
@@ -111,3 +113,18 @@ def test_geometric_median_non_converge(capsys):
     geometric_median(X.T, eps=1e-10, max_it=3)
     captured = capsys.readouterr()
     assert captured.out == msg_cap
+
+def test_check_params1():
+    kwargs = dict(rejection_cutoff=4.0, max_dimension=0.33, unknown_param=10, beta_range=100)
+    valid_kwargs = dict(beta_range=100)
+    assert valid_kwargs == check_params(_fit_eeg_distribution, **kwargs)
+
+def test_check_params_none():
+    kwargs = dict(rejection_cutoff=4.0, max_dimension=0.33, unknown_param=10)
+    valid_kwargs = dict()
+    assert valid_kwargs == check_params(_fit_eeg_distribution, **kwargs)
+
+def test_check_params_none():
+    kwargs = dict(rejection_cutoff=4.0, max_dimension=0.33, unknown_param=10)
+    valid_kwargs = dict()
+    assert (valid_kwargs, kwargs) == check_params(_fit_eeg_distribution, return_invalids=True, **kwargs)

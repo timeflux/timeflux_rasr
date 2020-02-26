@@ -8,7 +8,7 @@ import pandas as pd
 from numpy.lib import stride_tricks
 from scipy.spatial.distance import cdist, euclidean
 from sklearn.utils.validation import check_array
-
+import inspect
 
 def indices(list_, filtr=lambda x: bool(x)):
     # return indices of the element that met the condition defined in filtr
@@ -306,3 +306,37 @@ def geometric_median(X, eps=1e-10, max_it=1000):
         it += 1
     else:
         print("Geometric median could converge in %i iteration with eps=%.10f " % (it, eps))
+
+
+def check_params(func, return_invalids=False, **kwargs, ):
+    """Return only valid parameters for a function a class from named parameters.
+
+    Parameters
+    ----------
+    func : callable
+        n_features-dimensional points.
+    **kwargs :
+        Arbitrary keyword arguments.
+    return_invalids : bool (default: False)
+        If True, return both the valid and invalid arguments in a list.
+
+    Returns
+    -------
+    new_kwargs :
+        Only valid keyword arguments w.r. of func.
+    kwargs : (optional)
+        Only invalid keyword arguments w.r. of func. (only if return_invalids is True)
+
+    """
+    params = list(inspect.signature(func).parameters.keys())
+    new_kwargs = dict()
+    keys = kwargs.keys()
+    for key in list(keys):
+        if key in params:
+            new_kwargs[key] = kwargs[key]
+            del kwargs[key]
+
+    if return_invalids:
+        return new_kwargs, kwargs
+    else:
+        return new_kwargs

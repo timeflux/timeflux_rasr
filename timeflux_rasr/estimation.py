@@ -3,11 +3,10 @@ from pyriemann.utils.covariance import _check_est
 from pyriemann.utils.covariance import covariances
 from scipy.linalg import (sqrtm, eigh)
 import numpy as np
-from utils.utils import epoch, geometric_median
+from utils.utils import geometric_median, check_params
 from scipy.special import gammaincinv
 from scipy.special import gamma
 import logging
-import warnings
 from sklearn.utils.validation import check_array, check_is_fitted
 
 
@@ -55,6 +54,7 @@ class RASR(BaseEstimator, TransformerMixin):
 
     def __init__(self, estimator='scm', rejection_cutoff=3.0, max_dimension=0.66, **kwargs):
         """Init."""
+        self.Ne_ = None  # will be initialized during training
 
         self.estimator = _check_est(estimator)
 
@@ -62,8 +62,10 @@ class RASR(BaseEstimator, TransformerMixin):
 
         self.rejection_cutoff = rejection_cutoff
 
-        self.args_eeg_distribution = kwargs
-        self.Ne_ = None  # will be initialized during training
+        self.args_eeg_distribution, invalids = check_params(_fit_eeg_distribution, return_invalids=True, **kwargs)
+
+        if not invalids == {}:
+            raise ValueError(f"got an unexpected keyword arguments '{invalids}'")
 
     def fit(self, X, y=None):
         """

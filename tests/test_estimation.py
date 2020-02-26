@@ -5,6 +5,7 @@ import logging
 from sklearn.pipeline import Pipeline
 from timeflux_rasr.estimation import _fit_eeg_distribution, _rms
 import numpy.testing as npt
+import inspect
 from sklearn.utils.estimator_checks import check_estimator
 
 def test_fit_eeg_distribution_values():
@@ -122,11 +123,13 @@ def test_rasr_invalid_params():
         pipeline.transform(X[-1,: , :])
 
 def test_rasr_unknown_params():
-    with pytest.raises(TypeError, match="_fit_eeg_distribution\(\) got an unexpected keyword argument 'unknown_param'"):
+    dict_of_params = dict(rejection_cutoff=4.0, max_dimension=0.33, unknown_param=10)
+
+    invalid_params = dict(unknown_param=10)
+    with pytest.raises(ValueError, match=f"got an unexpected keyword arguments \'{invalid_params}\'"):
         # params are passed to _fit_eeg_distribution()
         np.random.seed(seed=42)
         X = np.random.randn(100, 100, 8)
-        dict_of_params = dict(rejection_cutoff=4.0, max_dimension=0.33, unknown_param=10)
         pipeline = RASR(**dict_of_params)
         pipeline.fit(X)
 
