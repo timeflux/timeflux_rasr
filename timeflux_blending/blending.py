@@ -72,8 +72,7 @@ class Blending(BaseEstimator, TransformerMixin):
         # Check that the input is of the same shape as the one passed
         # during fit.
         if X.shape[2] != self.n_channels_:
-            raise ValueError('Shape of input is different from what was seen'
-                             'in `fit`')
+            raise ValueError('Shape of input is different from what was seen in `fit`')
         if self.last_window_ is None:
             # generate flat last_window_ for first blending
             self.last_window_ = np.zeros((X.shape[1], X.shape[2]))

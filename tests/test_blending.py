@@ -15,3 +15,13 @@ def test_blending_fit():
     Xtransform = Blend.fit_transform(X)
     npt.assert_array_almost_equal(Xtransform[0,:], expectedmat)
 
+def test_blending_wrong_transform():
+    X = np.ones((1, 10, 2))
+    Blend = Blending(window_overlap=10)
+    expectedmat = np.repeat(np.array((1 - np.cos(np.pi * (np.arange(0, 10)/9)))/2)[:,None], 2, axis=1)
+    Blend.fit(X)
+    X = np.ones((1, 10, 3))
+    with pytest.raises(ValueError, match='Shape of input is different from what was seen in `fit`'):
+        Xtransform = Blend.transform(X)
+
+
