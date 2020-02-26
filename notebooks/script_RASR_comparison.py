@@ -9,7 +9,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from pyxdf import load_xdf
 from utils.utils import (epoch, get_stream_names, extract_signal_stream, float_index_to_time_index, estimate_rate,
-                         pandas_to_mne)
+                         pandas_to_mne, check_params)
 from sklearn.pipeline import make_pipeline
 from timeflux_rasr.estimation import RASR
 from utils.viz import (plot_all_mne_data, plot_time_dist)
@@ -89,7 +89,7 @@ if __name__ == '__main__':
             interval = int(size * (1 - test_configuration[test_ind]["window_overlap"]))  # step interval in samples
 
             # convert filtered data into epochs
-            np_eeg_filtered_epochs = epoch(df_eeg_filtered, size, interval, axis=0)  # (n_channels,  n_times, n_trials)
+            np_eeg_filtered_epochs = epoch(df_eeg_filtered, size, size, axis=0)  # (n_channels,  n_times, n_trials)
             logging.info("shape test data")
             logging.info(np_eeg_filtered_epochs.shape)
             # np_eeg_filtered_epochs = np.swapaxes(np_eeg_filtered_epochs, 0, 2 ) # (n_trials, n_channels, n_times)
@@ -108,7 +108,7 @@ if __name__ == '__main__':
             X_fit = np_eeg_calibration_epochs
             X_test = np_eeg_filtered_epochs
 
-            rASR_pipeline = make_pipeline(RASR(**test_configuration[test_ind]))
+            rASR_pipeline = make_pipeline(RASR(**check_params(RASR, **test_configuration[test_ind])))
 
             logging.info("Pipeline initialized")
             start = timer()
