@@ -5,8 +5,6 @@ import logging
 from sklearn.pipeline import Pipeline
 from timeflux_rasr.estimation import _fit_eeg_distribution, _rms
 import numpy.testing as npt
-import inspect
-from sklearn.utils.estimator_checks import check_estimator
 
 def test_fit_eeg_distribution_values():
     X = np.arange(1, 1001) ** 2 / 10000
