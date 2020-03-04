@@ -1,6 +1,5 @@
 import pytest
 from timeflux_blending.blending import Blending, _merge_overlap
-from sklearn.utils.estimator_checks import check_estimator
 import numpy as np
 import numpy.testing as npt
 
@@ -169,7 +168,7 @@ def test_blending_with_merge3():
     npt.assert_array_almost_equal(Xtransform, expectedmat)
 
 def test_blending_with_merge4():
-    """Check if handle properly multiple windows for blending with with merge
+    """Check if handle properly multiple windows for blending with with merge with first window interpolation to zero
     """
     X = np.reshape(np.arange(1., 31.), (5, 3, 2))
     Blend = Blending(window_overlap=2, merge=True, windowing=True)
@@ -184,7 +183,7 @@ def test_blending_with_merge4():
     npt.assert_array_almost_equal(Xtransform, expectedmat)
 
 def test_blending_with_merge5():
-    """Check if handle properly multiple windows for blending with with merge
+    """Check if handle properly multiple windows for blending with with merge without first interpolation
     """
     X = np.reshape(np.arange(1., 31.), (5, 3, 2))
     Blend = Blending(window_overlap=2, merge=True)
