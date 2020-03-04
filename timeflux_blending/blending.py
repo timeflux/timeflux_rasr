@@ -20,6 +20,10 @@ class Blending(BaseEstimator, TransformerMixin):
     merge : bool (default=False)
         If set to True, the output will be a unique 2D matrix when all windows will be collapsed and overlapping samples
         merged. By default, each window will be blended with the previous window.
+    windowing : bool | None (default=None)
+        If None or False, there is no interpolation for the first trial.
+        If True, the first trial will be interpolate to zeros (sinus windowing).
+
 
     Attributes
     ----------
@@ -29,11 +33,23 @@ class Blending(BaseEstimator, TransformerMixin):
         The last window observed during the last call of transform. It will be blended with the first window.
     """
 
-    def __init__(self, window_overlap=1, merge=False):
+    def __init__(self, window_overlap=1, merge=False, windowing=None):
         if window_overlap is None:
             raise ValueError("window_overlap parameter is not initialized.")
+        if not isinstance(window_overlap, int):
+            raise TypeError('window_overlap must int')
+
         self.window_overlap = window_overlap
 
+        if not isinstance(merge, bool):
+            raise TypeError('merge must bool')
+        self.merge = merge
+
+        if windowing is not None:
+            if not isinstance(windowing, bool):
+                raise TypeError('windowing must be None, or bool')
+
+        self.windowing = windowing
         self.last_window_ = None  # init last_window_
 
     def fit(self, X, y=None):
@@ -83,15 +99,23 @@ class Blending(BaseEstimator, TransformerMixin):
         if Ne != self.n_channels_:
             raise ValueError('Shape of input is different from what was seen in `fit`')
 
-        if self.last_window_ is None:
-            # generate flat last_window_ for first blending
-            self.last_window_ = np.zeros((Ns, Ne))
+
         if self.window_overlap > 0:  # apply blending only if samples are overlapping
             # estimate the blending coefficients
-            blend_coeff = (1 - np.cos(np.pi * (np.arange(0, self.window_overlap) / (self.window_overlap - 1)))) / 2
+            # blending is doing an temporal sinus-cosinus interpolation between two redundant samples.
+            # if self.window_overlap is 1, it is an average between the last and first sample (blend_coeff is 0.5)
+            blend_coeff = (1 - np.cos(np.pi * (np.arange(1, self.window_overlap + 1) / (self.window_overlap + 1)))) / 2
             blend_coeff = blend_coeff[:, None]
             for k in range(Nt):
                 if k == 0:
+                    if self.last_window_ is None:
+                        if self.windowing is True:
+                            # interpolate the first trial with zero (windowing)
+                            self.last_window_ = np.zeros((Ns, Ne))
+                        else:
+                            # no interpolation
+                            self.last_window_ = X[0, :, :]
+
                     last_values = self.last_window_[-self.window_overlap:, :]  # samples to blend from previous call
                 else:
                     last_values = X[k-1, -self.window_overlap:, :]             # samples to blend from previous window
@@ -101,8 +125,10 @@ class Blending(BaseEstimator, TransformerMixin):
 
             self.last_window_ = X[-1, :, :]
 
-
-        return X
+        if self.merge:
+            return _merge_overlap(X, self.window_overlap)
+        else:
+            return X
 
     def fit_transform(self, X, y=None):
         """
