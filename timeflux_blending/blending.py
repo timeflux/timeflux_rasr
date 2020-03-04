@@ -50,8 +50,12 @@ class Blending(BaseEstimator, TransformerMixin):
         self : Blending instance.
             the fitted Blending estimator.
         """
+        if len(X.shape) == 3:
+            Nt, Ns, self.n_channels_ = X.shape
+        else:
+            raise ValueError("X.shape should be (n_trials, n_samples, n_electrodes).")
+
         X = check_array(X, allow_nd=True)
-        self.n_channels_ = X.shape[2]
         return self
 
     def transform(self, X):
@@ -68,28 +72,35 @@ class Blending(BaseEstimator, TransformerMixin):
         # Check is fit had been called
         check_is_fitted(self, 'n_channels_')
 
-        X = check_array(X, allow_nd=True)
+        X = check_array(X, allow_nd=True, copy=True)
         # Check that the input is of the same shape as the one passed
         # during fit.
-        if X.shape[2] != self.n_channels_:
+        if len(X.shape) == 3:
+            Nt, Ns, Ne = X.shape
+        else:
+            raise ValueError("X.shape should be (n_trials, n_samples, n_electrodes).")
+
+        if Ne != self.n_channels_:
             raise ValueError('Shape of input is different from what was seen in `fit`')
+
         if self.last_window_ is None:
             # generate flat last_window_ for first blending
-            self.last_window_ = np.zeros((X.shape[1], X.shape[2]))
+            self.last_window_ = np.zeros((Ns, Ne))
+        if self.window_overlap > 0:  # apply blending only if samples are overlapping
+            # estimate the blending coefficients
+            blend_coeff = (1 - np.cos(np.pi * (np.arange(0, self.window_overlap) / (self.window_overlap - 1)))) / 2
+            blend_coeff = blend_coeff[:, None]
+            for k in range(Nt):
+                if k == 0:
+                    last_values = self.last_window_[-self.window_overlap:, :]  # samples to blend from previous call
+                else:
+                    last_values = X[k-1, -self.window_overlap:, :]             # samples to blend from previous window
 
-        # estimate the blending coefficients
-        blend_coeff = (1 - np.cos(np.pi * (np.arange(0, self.window_overlap) / (self.window_overlap - 1)))) / 2
-        blend_coeff = blend_coeff[:, None]
-        for k in range(X.shape[0]):
-            last_values = self.last_window_[-self.window_overlap:, :]  # sampled that will be blended
-            new_values = X[k, 0:self.window_overlap, :]
-            X[k, 0:self.window_overlap, :] = ((1 - blend_coeff) * last_values) + (blend_coeff * new_values)
+                new_values = X[k, 0:self.window_overlap, :]
+                X[k, 0:self.window_overlap, :] = ((1 - blend_coeff) * last_values) + (blend_coeff * new_values)
 
-        # # apply the reconstruction to intermediate samples(using raised - cosine blending)
-        #     blend = (1 - np.cos(np.pi * np.arrange(0,self.window_overlap) / (self.window_overlap))) / 2
-        #     data(:, subrange) = bsxfun( @ times, blend, R * data(:, subrange)) + bsxfun( @ times, 1 - blend, state.last_R * data(:, subrange));
-        #     end
-        #     [last_n, state.last_R, state.last_trivial] = deal(n, R, trivial);
+            self.last_window_ = X[-1, :, :]
+
 
         return X
 
@@ -109,3 +120,41 @@ class Blending(BaseEstimator, TransformerMixin):
         self.fit(X, y)
 
         return self.transform(X)
+
+def _merge_overlap(X, window_overlap):
+    """ Convert 3D epoched signals into continuous 2D signals for a given overlap by removing redundant samples.
+
+            Parameters
+            ----------
+            X : ndarray, shape (n_trials,  n_samples, n_channels)
+                The epoched data to flatten.
+            window_overlap : int (default=0)
+                Number of overlapping samples shared between epochs. Non-negative. If 0, just concatenate the trials.
+
+            Returns
+            -------
+            Xmerged : ndarray, shape (n_samples_new, n_channels)
+                the merged signals into 2D matrix without redundant samples.
+            """
+    if len(X.shape) == 3:
+        Nt, Ns, Ne = X.shape
+    else:
+        raise ValueError("X.shape should be (n_trials, n_samples, n_electrodes).")
+
+    if window_overlap < 0:
+        raise ValueError("window_overlap should be non-negative.")
+    if window_overlap > Ns:
+        raise ValueError("window_overlap cannot be higher than n_samples.")
+
+    if window_overlap > 0:
+        interval = Ns - window_overlap
+        Ns_new = (Ns) + (interval * (Nt - 1))
+        Xmerged = np.zeros((Ns_new, Ne))
+        for k in range(Nt):
+            i = k * interval
+            subrange = np.arange(i, i + Ns)
+            Xmerged[subrange, :] = X[k, :, :]
+    else:
+        Xmerged = np.concatenate(X)
+
+    return Xmerged
