@@ -11,7 +11,7 @@ class Config():
     def __init__(self, username=None):
         # generate attribute
         self.known_users = {"raph": '/Users/raph/OMIND_SERVER/DATA/rASR Data/',
-                       "louis": "/Users/louis/AlayaTec Dropbox/louis korczowski/rASR Data/",
+                       "louis": "/Users/louis/Dropbox/rASR Data/",
                        "sylchev": "/Users/sylchev/Dropbox/rASR Data/"}
 
         if username is None:

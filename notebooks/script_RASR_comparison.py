@@ -12,13 +12,14 @@ from utils.utils import (epoch, get_stream_names, extract_signal_stream, float_i
                          pandas_to_mne, check_params)
 from sklearn.pipeline import make_pipeline
 from timeflux_rasr.estimation import RASR
+from timeflux_blending.blending import Blending
+
 from utils.viz import (plot_all_mne_data, plot_time_dist)
 import logging
 import os
 from timeit import default_timer as timer
 import numpy as np
 
-Config = cfg()  # initialize class
 sns.set(font_scale=1)
 logging.info("Config LOADED")
 
@@ -34,13 +35,14 @@ if __name__ == '__main__':
     - comparison both qualitative and quantitative of the RASR output
     - save the figure and results
     """
-    # TODO: use test configuration for looping though different parameters (SPRINT3)
+    offset_test = 4     # in order to save more tests
     test_configuration = [{"window_len": 0.5, "window_overlap": 0.66, "rejection_cutoff": 3},
                           {"window_len": 0.5, "window_overlap": 0.66, "rejection_cutoff": 5},
                           {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 3},
                           {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 5}]
-    for test_ind in range(len(test_configuration)):  # for looping though many test_configuration
 
+    for test_ind in range(len(test_configuration)):  # for looping though many test_configuration
+        Config = cfg()  # initialize class
         Config.results_folder = os.path.join(Config.results_folder, f"test_{test_ind}")
         logging.basicConfig(filename=os.path.join(Config.results_folder, '_output.log'), level=logging.DEBUG)
         if not os.path.exists(Config.results_folder):
