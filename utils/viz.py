@@ -27,7 +27,7 @@ def plot_all_mne_data(raw, output_folder=os.path.expanduser("~"), title="test"):
     title_dist = title+"_dist"
 
     data = raw.get_data()
-    data = np.log(((1e6 * data) ** 2))  # log-normal instantaneous power
+    data = np.log(((1e6 * data + 1e-15) ** 2))  # log-normal instantaneous power
     Ne = data.shape[0]
     nb_columns = 6
     nb_rows = math.ceil(Ne/nb_columns)
