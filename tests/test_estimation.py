@@ -81,6 +81,19 @@ def test_rasr_rand_fit_transform():
     pipeline = RASR()
     pipeline.fit_transform(X)
 
+def test_rasr_nan_fit_transform():
+    """test initialization, fit and transform of RASR"""
+    np.random.seed(seed=42)
+    X = np.random.randn(100, 32, 8)
+    X2 = X.copy()
+    X2[10, 10, 0] = np.nan
+    pipeline = RASR()
+    with pytest.raises(ValueError, match=f"Input contains NaN, infinity or a value too large for dtype\(\'float64\'\)."):
+        pipeline.fit(X2)
+    with pytest.raises(ValueError, match=f"Input contains NaN, infinity or a value too large for dtype\(\'float64\'\)."):
+        pipeline.fit(X)
+        pipeline.transform(X2)
+
 def test_rasr_rand_fit_transform_training_test():
     """test initialization, fit and transform of RASR"""
     np.random.seed(seed=42)
@@ -189,5 +202,4 @@ def test_rasr_fit_to_randn_distribution_cutoff20():
 # TODO: test_rasr_output1              # test with fixed seed and parameters output (see below)
 # npt.assert_almost_equal(Xclean[0, 0], saved_array1)    # test first sample to given output
 # npt.assert_almost_equal(Xclean[49, 0], saved_array2)   # test first sample to given output
-# TODO: test_rasr_nan                  # test with NaN in array as input
 # TODO: test_rasr_singular             # test using duplicate column for singular matrix
