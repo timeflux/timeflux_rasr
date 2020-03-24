@@ -196,10 +196,4 @@ def test_rasr_fit_to_randn_distribution_cutoff20():
     npt.assert_allclose(np.abs(pipeline.mixing_), target_mixing, rtol=0.05, atol=0.01)
     npt.assert_allclose(np.abs(pipeline.threshold_), target_threshold, rtol=0.1, atol=0.1)
 
-# TODO: test_rasr_error_1              # test wrong size input
-# TODO: test_rasr_error_3              # test when singular matrix as input
-# TODO: test_rms                       # test output from a given matrix
-# TODO: test_rasr_output1              # test with fixed seed and parameters output (see below)
-# npt.assert_almost_equal(Xclean[0, 0], saved_array1)    # test first sample to given output
-# npt.assert_almost_equal(Xclean[49, 0], saved_array2)   # test first sample to given output
 # TODO: test_rasr_singular             # test using duplicate column for singular matrix
