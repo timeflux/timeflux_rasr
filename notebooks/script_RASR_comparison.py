@@ -1,26 +1,20 @@
 """Comparison between RASR Matlab and Python outputs.
-It is a refactoring of the jupyter notebook and it is extended to include more advanced metrics and figure outputs.
+It is an extended script analysis of the rASR method and comparison with the Matlab version.
 """
 
 from utils.config import Config as cfg
 import mne
 from mne.io import read_raw_eeglab
-import seaborn as sns
-import matplotlib.pyplot as plt
-from pyxdf import load_xdf
-from utils.utils import (epoch, get_stream_names, extract_signal_stream, float_index_to_time_index, estimate_rate,
-                         pandas_to_mne, check_params)
+from utils.utils import (epoch, check_params)
 from sklearn.pipeline import make_pipeline
 from timeflux_rasr.estimation import RASR
 from timeflux_blending.blending import Blending
-
 from utils.viz import (plot_all_mne_data, plot_time_dist)
 import logging
 import os
 from timeit import default_timer as timer
 import numpy as np
 
-sns.set(font_scale=1)
 logging.info("Config LOADED")
 
 if __name__ == '__main__':
@@ -35,15 +29,15 @@ if __name__ == '__main__':
     - comparison both qualitative and quantitative of the RASR output
     - save the figure and results
     """
-    offset_test = 4     # in order to save more tests
-    test_configuration = [{"window_len": 0.5, "window_overlap": 0.66, "rejection_cutoff": 3},
-                          {"window_len": 0.5, "window_overlap": 0.66, "rejection_cutoff": 5},
-                          {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 3},
-                          {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 5}]
+    offset_test = 8     # in order to save more tests
+    test_configuration = [{"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 5},
+                          {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 10},
+                          {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 20},
+                          {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 50}]
 
     for test_ind in range(len(test_configuration)):  # for looping though many test_configuration
         Config = cfg()  # initialize class
-        Config.results_folder = os.path.join(Config.results_folder, f"test_{test_ind}")
+        Config.results_folder = os.path.join(Config.results_folder, f"test_{test_ind+offset_test}")
         logging.basicConfig(filename=os.path.join(Config.results_folder, '_output.log'), level=logging.DEBUG)
         if not os.path.exists(Config.results_folder):
             os.mkdir(Config.results_folder)
@@ -51,15 +45,15 @@ if __name__ == '__main__':
             logging.debug("will overwrite previous test")
         # Load xdf and extract eeg stream
         logging.info("Load EEG files")
-        for k_file in range(len(Config.raw_files)):
+        for k_file in [0]: # in range(len(Config.raw_files)):
             # LOAD DATA
             ## Load training data
             mne_eeg_training = read_raw_eeglab(Config.calibration_files[k_file])
-            df_eeg_training = mne_eeg_training.to_data_frame()
+            df_eeg_training = mne_eeg_training.load_data().filter(l_freq=2, h_freq=35, verbose=False).to_data_frame()
 
             ## Load test data
             mne_eeg_test = read_raw_eeglab(Config.filtered_files[k_file])
-            df_eeg_test = mne_eeg_test.to_data_frame()
+            df_eeg_test = mne_eeg_test.load_data().filter(l_freq=2, h_freq=35, verbose=False).to_data_frame()
 
             ## test data cleaned with Matlab rASR
 
@@ -67,7 +61,7 @@ if __name__ == '__main__':
             df_eeg_rasr_matlab = mne_eeg_rasr_matlab.to_data_frame()
 
             # PREPARE TRAINING AND TEST EPOCHS
-            window_size = int(test_configuration[test_ind]["srate"] * test_configuration[test_ind]["window_len"])
+            window_size = int(mne_eeg_training.info["sfreq"] * test_configuration[test_ind]["window_len"])
             window_overlap = int(window_size * test_configuration[test_ind]["window_overlap"])
             window_interval = window_size - window_overlap  # step interval in samples
 
@@ -100,7 +94,10 @@ if __name__ == '__main__':
             plot_time_dist(time_table, output_folder=Config.results_folder, title=title)
 
             mne_eeg_rasr_info = mne_eeg_test.info
-            data = X_test_transformed.reshape(X_test_transformed.shape[0] * X_test_transformed.shape[1], -1).transpose()
+            # without blending
+            #data = X_test_transformed.reshape(X_test_transformed.shape[0] * X_test_transformed.shape[1], -1).transpose()
+            # apply blending
+            data = blending_pipeline.fit_transform(X_test_transformed).T
             mne_eeg_rasr_python = mne.io.RawArray(data * 1e-6, mne_eeg_rasr_info)
 
             # comparison
