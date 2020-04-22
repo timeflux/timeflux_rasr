@@ -16,7 +16,6 @@ dependencies:
     - scipy
     - matplotlib
     - seaborn
-    - jupyter
     # Pip dependencies
     - pip
     - pip:
