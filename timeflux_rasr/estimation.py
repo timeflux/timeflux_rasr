@@ -10,6 +10,7 @@ import logging
 from sklearn.utils.validation import check_array, check_is_fitted
 logger = logging.getLogger(__name__)
 
+
 class RASR(BaseEstimator, TransformerMixin):
     """ RASR
     Implements this (https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6499032/) paper.
