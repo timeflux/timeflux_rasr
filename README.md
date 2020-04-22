@@ -30,6 +30,37 @@ the `conda` command is found.
     $ pip install -e .
     ```
 
+4. (optional) If you have a problem with a missing package, add it to the `environment.yaml`, then:
+    ```
+    (timeflux_rasr-env)$ conda env update --file environment.yaml
+    ```
+
+5. (optional) If you want to use the notebook, we advice Jupyter Lab (already in requirements) with additional steps:
+    ```
+    $ conda activate timeflux_rasr-env
+    # install jupyter lab 
+    (timeflux_rasr-env)$ conda install -c conda-forge jupyterlab 
+    (timeflux_rasr-env)$ ipython kernel install --user --name=timeflux_rasr-env 
+    (timeflux_rasr-env)$ jupyter lab  # run jupyter lab and select timeflux_rasr-env kernel
+    # quit jupyter lab with CTRL+C then
+    (timeflux_rasr-env)$ conda install -c conda-forge ipympl
+    (timeflux_rasr-env)$ conda install -c conda-forge nodejs 
+    (timeflux_rasr-envv)$ jupyter labextension install @jupyter-widgets/jupyterlab-manager jupyter-matplotlib
+    ```
+   
+    To test if widget is working if fresh notebook:
+    ```
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    %matplotlib widget
+    
+    df = pd.DataFrame({'a': [1,2,3]})
+    
+    plt.figure(2)
+    plt.plot(df['a'])
+    plt.show()
+    ```
+
 ## References 
 - Blum-Jacobsen paper
 - ASR EEGLAB implementation :
