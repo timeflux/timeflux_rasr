@@ -7,7 +7,8 @@ import numpy as np
 import pandas as pd
 from numpy.lib import stride_tricks
 from scipy.spatial.distance import cdist, euclidean
-
+from sklearn.utils.validation import check_array
+import inspect
 
 def indices(list_, filtr=lambda x: bool(x)):
     # return indices of the element that met the condition defined in filtr
@@ -236,6 +237,10 @@ def epoch(a, size, interval, axis=-1):
         Epoched view of `a`. Epochs are in the first dimension.
     """
     a = np.asarray(a)
+    a = check_array(a)
+    if (size < 1) | (interval < 1):
+        raise ValueError("Invalid range for parameters")
+
     n_samples = a.shape[axis]
     n_epochs = (n_samples - size) // interval + 1
 
@@ -246,29 +251,6 @@ def epoch(a, size, interval, axis=-1):
     new_strides = (a.strides[axis] * interval,) + a.strides
 
     return stride_tricks.as_strided(a, new_shape, new_strides)
-
-def get_length(x):
-    """ Return the length of any list or ndarray and handdle multiple type
-
-    Parameters
-    ----------
-    x: float, int, list, ndarray
-        numerical structure of any type
-    Returns
-    -------
-    length: int
-        the number of elements of x
-    """
-    length_ = None
-    if isinstance(x, (np.ndarray, np.generic)):
-        length_ = x.size
-    else:
-        try:
-            length_ = len(x)
-        except:
-            raise ValueError("No recognized type, please add " + str(type(x)) + " to this function")
-
-    return length_
 
 
 def geometric_median(X, eps=1e-10, max_it=1000):
@@ -294,6 +276,7 @@ def geometric_median(X, eps=1e-10, max_it=1000):
         n_features-dimensional median of points X.
 
     """
+    check_array(X)
     y = np.mean(X, 0)
     it = 0
     while it < max_it:
@@ -323,3 +306,37 @@ def geometric_median(X, eps=1e-10, max_it=1000):
         it += 1
     else:
         print("Geometric median could converge in %i iteration with eps=%.10f " % (it, eps))
+
+
+def check_params(func, return_invalids=False, **kwargs, ):
+    """Return only valid parameters for a function a class from named parameters.
+
+    Parameters
+    ----------
+    func : callable
+        n_features-dimensional points.
+    **kwargs :
+        Arbitrary keyword arguments.
+    return_invalids : bool (default: False)
+        If True, return both the valid and invalid arguments in a list.
+
+    Returns
+    -------
+    new_kwargs :
+        Only valid keyword arguments w.r. of func.
+    kwargs : (optional)
+        Only invalid keyword arguments w.r. of func. (only if return_invalids is True)
+
+    """
+    params = list(inspect.signature(func).parameters.keys())
+    new_kwargs = dict()
+    keys = kwargs.keys()
+    for key in list(keys):
+        if key in params:
+            new_kwargs[key] = kwargs[key]
+            del kwargs[key]
+
+    if return_invalids:
+        return new_kwargs, kwargs
+    else:
+        return new_kwargs
