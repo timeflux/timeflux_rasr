@@ -8,7 +8,7 @@ from scipy.special import gammaincinv
 from scipy.special import gamma
 import logging
 from sklearn.utils.validation import check_array, check_is_fitted
-
+logger = logging.getLogger(__name__)
 
 class RASR(BaseEstimator, TransformerMixin):
     """ RASR
@@ -108,7 +108,7 @@ class RASR(BaseEstimator, TransformerMixin):
         # NOTE: while the term geometric median is used, it is NOT riemannian median but euclidian median, i.e.
         # it might be suboptimal for Symmetric Positive Definite matrices.
 
-        logging.info("geometric median")
+        logger.debug("geometric median")
         # covmean = mean_covariance(covmats, metric=self.metric_mean)
         covmean = np.reshape(geometric_median(
             np.reshape(covmats,
@@ -136,7 +136,7 @@ class RASR(BaseEstimator, TransformerMixin):
         self.threshold_ = np.diag(dist_params[:, 0] + self.rejection_cutoff * dist_params[:, 1]).dot(
             np.transpose(evecs))
 
-        logging.info("rASR calibrated")
+        logger.debug("rASR calibrated")
 
         return self
 
@@ -153,7 +153,6 @@ class RASR(BaseEstimator, TransformerMixin):
         """
         check_is_fitted(self, ['Ne_', 'mixing_', 'threshold_'])
         X = check_array(X, allow_nd=True)
-        logging.info("RASR.transform(): check input")
         shapeX = X.shape
 
         if len(shapeX) == 3:
@@ -166,11 +165,8 @@ class RASR(BaseEstimator, TransformerMixin):
         assert Ne < Ns, "number of samples should be higher than number of electrodes, check than \n" \
                         + "X.shape is (n_trials,  n_samples, n_channels)."
 
-        logging.info("RASR.transform(): compute covariances")
 
         covmats = covariances(np.swapaxes(X, 1, 2), estimator=self.estimator)  # (n_trials, n_channels, n_times)
-
-        logging.info("RASR.transform(): clean each epoch")
 
         # TODO: parallelizing the loop for efficiency
         for k in range(Nt):
