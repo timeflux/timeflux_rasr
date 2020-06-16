@@ -99,7 +99,6 @@ class Blending(BaseEstimator, TransformerMixin):
         if Ne != self.n_channels_:
             raise ValueError('Shape of input is different from what was seen in `fit`')
 
-
         if self.window_overlap > 0:  # apply blending only if samples are overlapping
             # estimate the blending coefficients
             # blending is doing an temporal sinus-cosinus interpolation between two redundant samples.
@@ -132,38 +131,40 @@ class Blending(BaseEstimator, TransformerMixin):
         else:
             return X
 
+
     def fit_transform(self, X, y=None):
         """
-                Parameters
-                ----------
-                X : ndarray, shape (n_trials,  n_samples, n_channels)
-                    Training data.
-                y : ndarray, shape (n_trials,) | None, optional
-                    labels corresponding to each trial, not used (mentioned for sklearn comp)
-                Returns
-                -------
-                X : ndarray, shape (n_trials, n_samples, n_channels)
-                    blended data
-                """
+        Parameters
+        ----------
+        X : ndarray, shape (n_trials,  n_samples, n_channels)
+            Training data.
+        y : ndarray, shape (n_trials,) | None, optional
+            labels corresponding to each trial, not used (mentioned for sklearn comp)
+        Returns
+        -------
+        X : ndarray, shape (n_trials, n_samples, n_channels)
+            blended data
+        """
         self.fit(X, y)
 
         return self.transform(X)
 
+
 def _merge_overlap(X, window_overlap):
     """ Convert 3D epoched signals into continuous 2D signals for a given overlap by removing redundant samples.
 
-            Parameters
-            ----------
-            X : ndarray, shape (n_trials,  n_samples, n_channels)
-                The epoched data to flatten.
-            window_overlap : int (default=0)
-                Number of overlapping samples shared between epochs. Non-negative. If 0, just concatenate the trials.
+    Parameters
+    ----------
+    X : ndarray, shape (n_trials,  n_samples, n_channels)
+        The epoched data to flatten.
+    window_overlap : int (default=0)
+        Number of overlapping samples shared between epochs. Non-negative. If 0, just concatenate the trials.
 
-            Returns
-            -------
-            Xmerged : ndarray, shape (n_samples_new, n_channels)
-                the merged signals into 2D matrix without redundant samples.
-            """
+    Returns
+    -------
+    Xmerged : ndarray, shape (n_samples_new, n_channels)
+        the merged signals into 2D matrix without redundant samples.
+    """
     if len(X.shape) == 3:
         Nt, Ns, Ne = X.shape
     else:
