@@ -176,7 +176,7 @@ class RASR(BaseEstimator, TransformerMixin):
             indx = np.argsort(evals)  # sort in ascending
             evecs = evecs[:, indx]
 
-            keep = (evals[indx] < sum((self.threshold_ * evecs) ** 2)) | \
+            keep = (evals[indx] < np.sum(self.threshold_.dot(evecs) ** 2, axis = 0)) | \
                    (np.arange(Ne) < (Ne * (1 - self.max_dimension)))
 
             keep = np.expand_dims(keep, 0)  # for element wise multiplication that follows
