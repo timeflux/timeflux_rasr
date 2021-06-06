@@ -15,6 +15,13 @@ You can then install this plugin in the `timeflux` environment:
     $ conda activate timeflux
     $ pip install timeflux_rasr
 
+Witness the magic!
+------------------
+
+::
+
+    $ timeflux -d examples/replay.yaml
+
 Screenshot
 ----------
 
