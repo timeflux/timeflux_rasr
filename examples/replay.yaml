@@ -1,0 +1,120 @@
+graphs:
+
+  - id: Broker
+    nodes:
+    - id: proxy
+      module: timeflux.nodes.zmq
+      class: Broker
+
+  - id: Main
+    nodes:
+    - id: replay
+      module: timeflux.nodes.hdf5
+      class: Replay
+      params:
+        filename: ../data/sme_1_1.gz.hdf5
+        keys:
+          #- /eeg/filtered
+          - /eeg/raw
+          - /events
+    - id: bandpass
+      module: timeflux_dsp.nodes.filters
+      class: IIRFilter
+      params:
+        rate: 250
+        order: 3
+        frequencies: [1, 30]
+    - id: window
+      module: timeflux.nodes.window
+      class: Window
+      params:
+        length: 120
+        step: 60
+        index: sample
+        epochs: true
+    - id: rasr
+      module: timeflux.nodes.ml
+      class: Pipeline
+      params:
+        mode: transform
+        meta_label: null
+        event_start_accumulation: calibration_begins
+        event_stop_accumulation: calibration_ends
+        event_start_training: calibration_ends
+        steps:
+          - module: timeflux_rasr.estimators.rasr
+            class: RASR
+          - module: timeflux_rasr.estimators.blending
+            class: Blending
+    - id: display
+      module: timeflux.nodes.debug
+      class: Display
+    - id: pub_before
+      module: timeflux.nodes.zmq
+      class: Pub
+      params:
+        topic: before
+    - id: pub_after
+      module: timeflux.nodes.zmq
+      class: Pub
+      params:
+        topic: after
+    edges:
+    - source: replay:eeg_raw
+      target: bandpass
+    - source: bandpass
+      target: window
+    - source: replay:events
+      target: rasr:events
+    - source: window:*
+      target: rasr:training
+    - source: window:*
+      target: rasr
+    - source: bandpass
+      target: pub_before
+    - source: rasr:0
+      target: pub_after
+    - source: replay:events
+      target: display
+    rate: 5
+
+  - id: Monitor
+    nodes:
+    - id: sub
+      module: timeflux.nodes.zmq
+      class: Sub
+      params:
+        topics: [ before, after ]
+    - id: ui
+      module: timeflux_ui.nodes.ui
+      class: UI
+      params:
+        settings:
+          monitor:
+            minValue: -30
+            maxValue: 30
+    edges:
+      - source: sub:before
+        target: ui:before
+      - source: sub:after
+        target: ui:after
+    rate: 10
+
+  # - id: Recorder
+  #   nodes:
+  #   - id: sub
+  #     module: timeflux.nodes.zmq
+  #     class: Sub
+  #     params:
+  #       topics: [ before, after ]
+  #   - id: save
+  #     module: timeflux.nodes.hdf5
+  #     class: Save
+  #     params:
+  #       path: .
+  #   edges:
+  #     - source: sub:before
+  #       target: save:before
+  #     - source: sub:after
+  #       target: save:after
+  #   rate: 1
