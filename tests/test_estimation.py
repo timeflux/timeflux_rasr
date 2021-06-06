@@ -1,10 +1,11 @@
 import pytest
-from timeflux_rasr.estimation import RASR
+from timeflux_rasr.estimation import RASR, _fit_eeg_distribution, _rms
+from utils.utils import epoch
 import numpy as np
 import logging
 from sklearn.pipeline import Pipeline
-from timeflux_rasr.estimation import _fit_eeg_distribution, _rms
 import numpy.testing as npt
+
 
 def test_fit_eeg_distribution_values():
     X = np.arange(1, 1001) ** 2 / 10000
@@ -80,6 +81,19 @@ def test_rasr_rand_fit_transform():
     pipeline = RASR()
     pipeline.fit_transform(X)
 
+def test_rasr_nan_fit_transform():
+    """test initialization, fit and transform of RASR"""
+    np.random.seed(seed=42)
+    X = np.random.randn(100, 32, 8)
+    X2 = X.copy()
+    X2[10, 10, 0] = np.nan
+    pipeline = RASR()
+    with pytest.raises(ValueError, match=f"Input contains NaN, infinity or a value too large for dtype\(\'float64\'\)."):
+        pipeline.fit(X2)
+    with pytest.raises(ValueError, match=f"Input contains NaN, infinity or a value too large for dtype\(\'float64\'\)."):
+        pipeline.fit(X)
+        pipeline.transform(X2)
+
 def test_rasr_rand_fit_transform_training_test():
     """test initialization, fit and transform of RASR"""
     np.random.seed(seed=42)
@@ -131,11 +145,55 @@ def test_rasr_unknown_params():
         pipeline = RASR(**dict_of_params)
         pipeline.fit(X)
 
-# TODO: test_rasr_error_1              # test wrong size input
-# TODO: test_rasr_error_3              # test when singular matrix as input
-# TODO: test_rms                       # test output from a given matrix
-# TODO: test_rasr_output1              # test with fixed seed and parameters output (see below)
-# npt.assert_almost_equal(Xclean[0, 0], saved_array1)    # test first sample to given output
-# npt.assert_almost_equal(Xclean[49, 0], saved_array2)   # test first sample to given output
-# TODO: test_rasr_nan                  # test with NaN in array as input
+def test_rasr_fit_to_randn_distribution_cutoff3():
+    """Check fit against approximate estimation of the mixing and threshold matrices for given cutoff"""
+    np.random.seed(seed=10)
+    srate = 250
+    cutoff = 3
+    window_len = int(0.5 * srate)
+    window_interval = int(window_len * 0.34)
+    X = np.diag(np.arange(1, 5)).dot(np.random.randn(4, srate * 60))
+    epochs = np.swapaxes(epoch(X, window_len, window_interval), 2, 1)
+    dict_of_params = dict(rejection_cutoff=cutoff, max_dimension=0.33)
+    pipeline = RASR(**dict_of_params)
+    pipeline.fit(epochs)
+    target_mixing = np.diag(np.arange(1, 5))
+    target_threshold = target_mixing * (1 + cutoff * 0.05)  # based on gaussian
+    npt.assert_allclose(np.abs(pipeline.mixing_), target_mixing, rtol=0.05, atol=0.01)
+    npt.assert_allclose(np.abs(pipeline.threshold_), target_threshold, rtol=0.05, atol=0.05)
+
+def test_rasr_fit_to_randn_distribution_cutoff5():
+    """Check fit against approximate estimation of the mixing and threshold matrices for given cutoff"""
+    np.random.seed(seed=10)
+    srate = 250
+    cutoff = 5
+    window_len = int(0.5 * srate)
+    window_interval = int(window_len * 0.34)
+    X = np.diag(np.arange(1, 5)).dot(np.random.randn(4, srate * 60))
+    epochs = np.swapaxes(epoch(X, window_len, window_interval), 2, 1)
+    dict_of_params = dict(rejection_cutoff=cutoff, max_dimension=0.33)
+    pipeline = RASR(**dict_of_params)
+    pipeline.fit(epochs)
+    target_mixing = np.diag(np.arange(1, 5))
+    target_threshold = target_mixing * (1 + cutoff * 0.05)  # based on gaussian
+    npt.assert_allclose(np.abs(pipeline.mixing_), target_mixing, rtol=0.05, atol=0.01)
+    npt.assert_allclose(np.abs(pipeline.threshold_), target_threshold, rtol=0.05, atol=0.05)
+
+def test_rasr_fit_to_randn_distribution_cutoff20():
+    """Check fit against approximate estimation of the mixing and threshold matrices for given cutoff"""
+    np.random.seed(seed=10)
+    srate = 250
+    cutoff = 20
+    window_len = int(0.5 * srate)
+    window_interval = int(window_len * 0.34)
+    X = np.diag(np.arange(1, 5)).dot(np.random.randn(4, srate * 60))
+    epochs = np.swapaxes(epoch(X, window_len, window_interval), 2, 1)
+    dict_of_params = dict(rejection_cutoff=cutoff, max_dimension=0.33)
+    pipeline = RASR(**dict_of_params)
+    pipeline.fit(epochs)
+    target_mixing = np.diag(np.arange(1, 5))
+    target_threshold = target_mixing * (1 + cutoff * 0.05)  # based on gaussian
+    npt.assert_allclose(np.abs(pipeline.mixing_), target_mixing, rtol=0.05, atol=0.01)
+    npt.assert_allclose(np.abs(pipeline.threshold_), target_threshold, rtol=0.1, atol=0.1)
+
 # TODO: test_rasr_singular             # test using duplicate column for singular matrix

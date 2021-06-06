@@ -1,25 +1,20 @@
 """Comparison between RASR Matlab and Python outputs.
-It is a refactoring of the jupyter notebook and it is extended to include more advanced metrics and figure outputs.
+It is an extended script analysis of the rASR method and comparison with the Matlab version.
 """
 
 from utils.config import Config as cfg
 import mne
 from mne.io import read_raw_eeglab
-import seaborn as sns
-import matplotlib.pyplot as plt
-from pyxdf import load_xdf
-from utils.utils import (epoch, get_stream_names, extract_signal_stream, float_index_to_time_index, estimate_rate,
-                         pandas_to_mne, check_params)
+from utils.utils import (epoch, check_params)
 from sklearn.pipeline import make_pipeline
 from timeflux_rasr.estimation import RASR
+from timeflux_blending.blending import Blending
 from utils.viz import (plot_all_mne_data, plot_time_dist)
 import logging
 import os
 from timeit import default_timer as timer
 import numpy as np
 
-Config = cfg()  # initialize class
-sns.set(font_scale=1)
 logging.info("Config LOADED")
 
 if __name__ == '__main__':
@@ -34,14 +29,15 @@ if __name__ == '__main__':
     - comparison both qualitative and quantitative of the RASR output
     - save the figure and results
     """
-    # TODO: use test configuration for looping though different parameters (SPRINT3)
-    test_configuration = [{"window_len": 0.5, "window_overlap": 0.66, "rejection_cutoff": 3},
-                          {"window_len": 0.5, "window_overlap": 0.66, "rejection_cutoff": 5},
-                          {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 3},
-                          {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 5}]
-    for test_ind in range(len(test_configuration)):  # for looping though many test_configuration
+    offset_test = 8     # in order to save more tests
+    test_configuration = [{"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 5},
+                          {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 10},
+                          {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 20},
+                          {"window_len": 3, "window_overlap": 0.9, "rejection_cutoff": 50}]
 
-        Config.results_folder = os.path.join(Config.results_folder, f"test_{test_ind}")
+    for test_ind in range(len(test_configuration)):  # for looping though many test_configuration
+        Config = cfg()  # initialize class
+        Config.results_folder = os.path.join(Config.results_folder, f"test_{test_ind+offset_test}")
         logging.basicConfig(filename=os.path.join(Config.results_folder, '_output.log'), level=logging.DEBUG)
         if not os.path.exists(Config.results_folder):
             os.mkdir(Config.results_folder)
@@ -49,72 +45,41 @@ if __name__ == '__main__':
             logging.debug("will overwrite previous test")
         # Load xdf and extract eeg stream
         logging.info("Load EEG files")
-        for k_file in range(len(Config.raw_files)):
+        for k_file in [0]: # in range(len(Config.raw_files)):
             # LOAD DATA
+            ## Load training data
+            mne_eeg_training = read_raw_eeglab(Config.calibration_files[k_file])
+            df_eeg_training = mne_eeg_training.load_data().filter(l_freq=2, h_freq=35, verbose=False).to_data_frame()
 
-            ## Load raw data
-            raw_xdf_fname = Config.raw_files[k_file]
-            streams, _ = load_xdf(raw_xdf_fname)
-            stream_names = get_stream_names(streams)
-            df_eeg_raw = extract_signal_stream(streams, 'Android_EEG_010026')
-            df_presentation_events = extract_signal_stream(streams, 'Presentation_Markers')
-            eeg_columns = ['Fp1', 'Fp2', 'Fz', 'F7', 'F8', 'FC1', 'FC2', 'Cz', 'C3', 'C4', 'T7',
-                           'T8', 'CPz', 'CP1', 'CP2', 'CP5', 'CP6', 'Tp9', 'Tp10', 'Pz', 'P3',
-                           'P4', 'O1', 'O2']
-            df_eeg_raw = df_eeg_raw.loc[:, eeg_columns]
-            bad_ch = []
-            df_eeg_raw = float_index_to_time_index(df_eeg_raw)
+            ## Load test data
+            mne_eeg_test = read_raw_eeglab(Config.filtered_files[k_file])
+            df_eeg_test = mne_eeg_test.load_data().filter(l_freq=2, h_freq=35, verbose=False).to_data_frame()
 
-            duration = (df_eeg_raw.index[-1] - df_eeg_raw.index[0]).total_seconds() / 60
-            rate = estimate_rate(df_eeg_raw)
-            test_configuration[test_ind]["srate"] = rate
-            mne_eeg_raw, mene_event_id, mne_picks = pandas_to_mne(df_eeg_raw, rate=rate, bad_ch=bad_ch)
-            mne_eeg_filtered_from_raw = mne_eeg_raw.copy().filter(1, 30)
-
-            ## Load filtered data
-            mne_eeg_filtered = read_raw_eeglab(Config.filtered_files[k_file])
-            df_eeg_filtered = mne_eeg_filtered.to_data_frame()
-
-            ## Load calibration data
-            mne_eeg_calibration = read_raw_eeglab(Config.calibration_files[k_file])
-            df_eeg_calibration = mne_eeg_calibration.to_data_frame()
-
-            ## Load rASR output
+            ## test data cleaned with Matlab rASR
 
             mne_eeg_rasr_matlab = read_raw_eeglab(Config.riemannian_asr_out_files[k_file])
             df_eeg_rasr_matlab = mne_eeg_rasr_matlab.to_data_frame()
 
-            size = int(test_configuration[test_ind]["srate"]
-                       * test_configuration[test_ind]["window_len"])  # size of window in samples
-            interval = int(size * (1 - test_configuration[test_ind]["window_overlap"]))  # step interval in samples
+            # PREPARE TRAINING AND TEST EPOCHS
+            window_size = int(mne_eeg_training.info["sfreq"] * test_configuration[test_ind]["window_len"])
+            window_overlap = int(window_size * test_configuration[test_ind]["window_overlap"])
+            window_interval = window_size - window_overlap  # step interval in samples
 
-            # convert filtered data into epochs
-            np_eeg_filtered_epochs = epoch(df_eeg_filtered, size, size, axis=0)  # (n_channels,  n_times, n_trials)
-            logging.info("shape test data")
-            logging.info(np_eeg_filtered_epochs.shape)
-            # np_eeg_filtered_epochs = np.swapaxes(np_eeg_filtered_epochs, 0, 2 ) # (n_trials, n_channels, n_times)
+            # convert training data into epochs
+            X_training = epoch(df_eeg_training.values, window_size, window_interval, axis=0)
 
-            # convert calibration data into epochs
-            np_eeg_calibration_epochs = epoch(df_eeg_calibration.values, size, interval,
-                                              axis=0)  # (n_channels,  n_times, n_trials)
-            # np_eeg_calibration_epochs = np.swapaxes(np_eeg_calibration_epochs, 0, 2 )# (n_trials, n_channels, n_times)
-            logging.info("shape training data")
-            logging.info(np_eeg_calibration_epochs.shape)
-
-            # %% md
+            # convert test data into epochs
+            X_test = epoch(df_eeg_test, window_size, window_interval, axis=0)
 
             ## RASR IMPLEMENTATION
 
-            X_fit = np_eeg_calibration_epochs
-            X_test = np_eeg_filtered_epochs
-
             rASR_pipeline = make_pipeline(RASR(**check_params(RASR, **test_configuration[test_ind])))
-
+            blending_pipeline = make_pipeline(Blending(window_overlap=window_overlap, merge=True))
             logging.info("Pipeline initialized")
             start = timer()
-            rASR_pipeline = rASR_pipeline.fit(X_fit)
+            rASR_pipeline = rASR_pipeline.fit(X_training)
             end = timer()
-            print(f"test_{test_ind}: Pipeline fitted in {end - start}s ({(end - start) / X_fit.shape[0]}s/epoch)")
+            print(f"test_{test_ind}: Pipeline fitted in {end - start}s ({(end - start) / X_training.shape[0]}s/epoch)")
 
             X_test_transformed = np.zeros(X_test.shape)
             start = timer()
@@ -124,23 +89,26 @@ if __name__ == '__main__':
                 X_test_transformed[n_epoch, :, :] = rASR_pipeline.transform(X_test[[n_epoch], :, :])
                 time_table[n_epoch] = timer() - start_in
             end = timer()
-            print(f"test_{test_ind}: Pipeline transform in {end - start}s ({(end - start) / X_fit.shape[0]}s/epoch)")
+            print(f"test_{test_ind}: Pipeline transform in {end - start}s ({(end - start) / X_training.shape[0]}s/epoch)")
             title = f"s{k_file}_transform_computational_time"
             plot_time_dist(time_table, output_folder=Config.results_folder, title=title)
 
-            mne_eeg_rasr_info = mne_eeg_filtered.info
-            data = X_test_transformed.reshape(X_test_transformed.shape[0] * X_test_transformed.shape[1], -1).transpose()
+            mne_eeg_rasr_info = mne_eeg_test.info
+            # without blending
+            #data = X_test_transformed.reshape(X_test_transformed.shape[0] * X_test_transformed.shape[1], -1).transpose()
+            # apply blending
+            data = blending_pipeline.fit_transform(X_test_transformed).T
             mne_eeg_rasr_python = mne.io.RawArray(data * 1e-6, mne_eeg_rasr_info)
 
             # comparison
             title = f"s{k_file}_filtered"
-            plot_all_mne_data(mne_eeg_filtered, Config.results_folder, title)
+            plot_all_mne_data(mne_eeg_test, Config.results_folder, title)
 
             title = f"s{k_file}_RASR_matlab"
             plot_all_mne_data(mne_eeg_rasr_matlab, Config.results_folder, title)
 
             title = f"s{k_file}_RASR_matlab_diff"
-            eeg_rasr_matlab_diff = mne_eeg_filtered[:, 0:len(mne_eeg_rasr_matlab)][0] - mne_eeg_rasr_matlab.get_data()
+            eeg_rasr_matlab_diff = mne_eeg_test[:, 0:len(mne_eeg_rasr_matlab)][0] - mne_eeg_rasr_matlab.get_data()
             mne_eeg_rasr_diff = mne.io.RawArray(data=eeg_rasr_matlab_diff, info=mne_eeg_rasr_matlab.info, verbose=False)
             plot_all_mne_data(mne_eeg_rasr_diff, Config.results_folder, title)
 
@@ -148,8 +116,8 @@ if __name__ == '__main__':
             plot_all_mne_data(mne_eeg_rasr_python, Config.results_folder, title)
 
             title = f"s{k_file}_RASR_python_diff"
-            eeg_rasr_diff = mne_eeg_filtered[:, 0:len(mne_eeg_rasr_python)][0] - mne_eeg_rasr_python.get_data()
-            mne_eeg_rasr_diff = mne.io.RawArray(data=eeg_rasr_diff, info=mne_eeg_filtered.info, verbose=False)
+            eeg_rasr_diff = mne_eeg_test[:, 0:len(mne_eeg_rasr_python)][0] - mne_eeg_rasr_python.get_data()
+            mne_eeg_rasr_diff = mne.io.RawArray(data=eeg_rasr_diff, info=mne_eeg_test.info, verbose=False)
             plot_all_mne_data(mne_eeg_rasr_diff, Config.results_folder, title)
 
             title = f"s{k_file}_RASR_matlab-python_diff"

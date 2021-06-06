@@ -134,6 +134,8 @@ class RASR(BaseEstimator, TransformerMixin):
         #TODO: use joblib to parrallelize this loop (code bottleneck)
         for c in range(Ne):
             dist_params[c, :] = _fit_eeg_distribution(rms_sliding[:, c], **self.args_eeg_distribution)
+
+        #TODO: double check threshold_
         self.threshold_ = np.diag(dist_params[:, 0] + self.rejection_cutoff * dist_params[:, 1]).dot(
             np.transpose(evecs))
 
@@ -175,6 +177,7 @@ class RASR(BaseEstimator, TransformerMixin):
             evals, evecs = eigh(covmats[k, :])  # compute PCA
             indx = np.argsort(evals)  # sort in ascending
             evecs = evecs[:, indx]
+
 
             keep = (evals[indx] < np.sum(self.threshold_.dot(evecs) ** 2, axis = 0)) | \
                    (np.arange(Ne) < (Ne * (1 - self.max_dimension)))

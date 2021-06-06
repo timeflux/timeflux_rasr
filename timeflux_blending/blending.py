@@ -71,7 +71,7 @@ class Blending(BaseEstimator, TransformerMixin):
         else:
             raise ValueError("X.shape should be (n_trials, n_samples, n_electrodes).")
 
-        X = check_array(X, allow_nd=True)
+        check_array(X, allow_nd=True)
         return self
 
     def transform(self, X):
@@ -105,24 +105,26 @@ class Blending(BaseEstimator, TransformerMixin):
             # if self.window_overlap is 1, it is an average between the last and first sample (blend_coeff is 0.5)
             blend_coeff = (1 - np.cos(np.pi * (np.arange(1, self.window_overlap + 1) / (self.window_overlap + 1)))) / 2
             blend_coeff = blend_coeff[:, None]
-            for k in range(Nt):
-                if k == 0:
-                    if self.last_window_ is None:
-                        if self.windowing is True:
-                            # interpolate the first trial with zero (windowing)
-                            self.last_window_ = np.zeros((Ns, Ne))
-                        else:
-                            # no interpolation
-                            self.last_window_ = X[0, :, :]
 
-                    last_values = self.last_window_[-self.window_overlap:, :]  # samples to blend from previous call
+            for k in range(Nt):  # for each epoch
+                if (k == 0) and (self.last_window_ is None):
+                    # case: first use of the class
+                    if self.windowing is True:
+                        # interpolate the first trial with zero (windowing)
+                        self.last_window_ = np.zeros((Ns, Ne))
+                        last_values = self.last_window_[-self.window_overlap:, :]  # blending from zero
+
+                    else:
+                        # no interpolation
+                        self.last_window_ = X[0, :, :]
+                        last_values = self.last_window_[:self.window_overlap, :]   # no blending
                 else:
-                    last_values = X[k-1, -self.window_overlap:, :]             # samples to blend from previous window
+                    # case:
+                    last_values = self.last_window_[-self.window_overlap:, :]  # blending from previous window
 
                 new_values = X[k, 0:self.window_overlap, :]
+                self.last_window_ = X[k, :, :]
                 X[k, 0:self.window_overlap, :] = ((1 - blend_coeff) * last_values) + (blend_coeff * new_values)
-
-            self.last_window_ = X[-1, :, :]
 
         if self.merge:
             return _merge_overlap(X, self.window_overlap)
