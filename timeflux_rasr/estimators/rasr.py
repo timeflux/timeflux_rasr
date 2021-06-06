@@ -47,11 +47,11 @@ class RASR(BaseEstimator, TransformerMixin):
     Ne_ : int
         The dimension managed by the fitted RASR, e.g. number of electrodes.
     mixing_ : ndarray, shape(n_chan, n_chan)
-        Mixing matrix computed from geometric median covariance matrix U such as
-        .. math:: mixing_ = M: M*M = U
+        Mixing matrix computed from geometric median covariance matrix U such as:
+        :math:`mixing = M: M*M = U`
     threshold_ : ndarray, shape(n_chan,)
         Threshold operator used to find the subspace dimension such as:
-        .. math:: threshold_ = T: X_{clean} = m ( V^T_{clean} M )^+ V^T X
+        :math:`threshold = T: X_{clean} = m ( V^T_{clean} M )^+ V^T X`
     """
 
     def __init__(
