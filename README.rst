@@ -8,7 +8,7 @@ Installation
 
 First, make sure that `Timeflux <https://github.com/timeflux/timeflux>`__ is installed.
 
-You can then install this plugin in the `timeflux` environment:
+You can then install this plugin in the ``timeflux`` environment:
 
 ::
 
