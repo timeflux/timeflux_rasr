@@ -37,7 +37,7 @@ jobs:
         cd ..
     - name: Test code
       run: |
-        pip uninstall pyriemann
+        pip uninstall -y pyriemann
         pip install git+https://github.com/pyRiemann/pyRiemann
         pip install pytest pytest-cov
         pytest --cov=$PACKAGE
