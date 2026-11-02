@@ -88,9 +88,9 @@ def test_rasr_nan_fit_transform():
     X2 = X.copy()
     X2[10, 10, 0] = np.nan
     pipeline = RASR()
-    with pytest.raises(ValueError, match=f"Input contains NaN, infinity or a value too large for dtype\(\'float64\'\)."):
+    with pytest.raises(ValueError, match="Input contains NaN"):
         pipeline.fit(X2)
-    with pytest.raises(ValueError, match=f"Input contains NaN, infinity or a value too large for dtype\(\'float64\'\)."):
+    with pytest.raises(ValueError, match="Input contains NaN"):
         pipeline.fit(X)
         pipeline.transform(X2)
 
@@ -121,13 +121,13 @@ def test_rasr_invalid_params():
         pipeline = RASR()
         pipeline.fit_transform(X)
 
-    with pytest.raises(ValueError, match="X.shape should be \(n_trials, n_samples, n_electrodes\)."):
+    with pytest.raises(ValueError, match=r"X\.shape should be \(n_trials, n_samples, n_electrodes\)"):
         np.random.seed(seed=42)
         X = np.random.randn(100, 8)
         pipeline = RASR()
         pipeline.fit_transform(X)
 
-    with pytest.raises(ValueError, match="X.shape should be \(n_trials, n_samples, n_electrodes\)."):
+    with pytest.raises(ValueError, match=r"X\.shape should be \(n_trials, n_samples, n_electrodes\)"):
         np.random.seed(seed=42)
         X = np.random.randn(100, 100, 8)
         pipeline = RASR()
@@ -197,3 +197,15 @@ def test_rasr_fit_to_randn_distribution_cutoff20():
     npt.assert_allclose(np.abs(pipeline.threshold_), target_threshold, rtol=0.1, atol=0.1)
 
 # TODO: test_rasr_singular             # test using duplicate column for singular matrix
+
+
+def test_rasr_riemann_median():
+    rng = np.random.RandomState(0)
+    X = rng.randn(120, 64, 4) @ rng.randn(4, 4)
+    euclid = RASR(metric="euclid").fit(X)
+    riemann = RASR(metric="riemann").fit(X)
+    # both medians estimate the same covariance on clean Gaussian data
+    npt.assert_allclose(riemann.mixing_, euclid.mixing_, rtol=0.1, atol=0.05)
+    assert riemann.transform(X).shape == X.shape
+    with pytest.raises(ValueError, match="metric"):
+        RASR(metric="logeuclid")

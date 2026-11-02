@@ -42,13 +42,13 @@ def test_blending_wrong_transform():
 def test_blending_NaN():
     """Check if returns error when NaN"""
     X = np.ones((1, 10, 2))
-    X[0, 5, 1] = np.NaN
+    X[0, 5, 1] = np.nan
     Blend = Blending(window_overlap=10)
-    with pytest.raises(ValueError, match='Input contains NaN, infinity or a value too large for dtype\(\'float64\'\).'):
+    with pytest.raises(ValueError, match="Input contains NaN"):
         Blend.fit(X)
     X2 = np.ones((1, 10, 3))
     Blend.fit(X2)
-    with pytest.raises(ValueError, match='Input contains NaN, infinity or a value too large for dtype\(\'float64\'\).'):
+    with pytest.raises(ValueError, match="Input contains NaN"):
         Xtransform = Blend.transform(X)
 
 
@@ -56,7 +56,7 @@ def test_blending_fit_wrong_dim():
     """Check if returns error when number of spatial dimension changed"""
     X = np.ones((1, 10))
     Blend = Blending(window_overlap=10)
-    with pytest.raises(ValueError, match='X.shape should be \(n_trials, n_samples, n_electrodes\).'):
+    with pytest.raises(ValueError, match=r"X\.shape should be \(n_trials, n_samples, n_electrodes\)"):
         Blend.fit(X)
 
 
@@ -65,7 +65,7 @@ def test_blending_transform_wrong_dim():
     X = np.ones((1, 10, 2))
     Blend = Blending(window_overlap=10)
     Blend.fit(X)
-    with pytest.raises(ValueError, match='X.shape should be \(n_trials, n_samples, n_electrodes\).'):
+    with pytest.raises(ValueError, match=r"X\.shape should be \(n_trials, n_samples, n_electrodes\)"):
         Blend.transform(np.ones((10, 2)))
 
 
@@ -143,7 +143,7 @@ def test_merge_negativ_overlap():
 
 def test_merge_wrong_dim():
     X = np.concatenate([np.ones((10, 2)), np.zeros((10, 2))])
-    with pytest.raises(ValueError, match='X.shape should be \(n_trials, n_samples, n_electrodes\).'):
+    with pytest.raises(ValueError, match=r"X\.shape should be \(n_trials, n_samples, n_electrodes\)"):
         Xtransform = _merge_overlap(X, window_overlap=1)
 
 
