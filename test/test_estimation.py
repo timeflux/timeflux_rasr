@@ -209,3 +209,41 @@ def test_rasr_riemann_median():
     assert riemann.transform(X).shape == X.shape
     with pytest.raises(ValueError, match="metric"):
         RASR(metric="logeuclid")
+
+
+def test_rasr_nonlinear_eigh_closed_form():
+    from timeflux_rasr.estimators.rasr import rasr_nonlinear_eigh
+
+    rng = np.random.RandomState(1)
+    A = rng.randn(6, 200)
+    L = A @ A.T / 200 + np.ones((6, 6))  # correlated channels
+    evals, evecs = rasr_nonlinear_eigh(L)
+
+    # every orthonormal n x n matrix has rho = diag(X X^T) = 1, so the
+    # Zhao et al. cost minimized by rasr_nonlinear_eigenspace.m is constant
+    # on Gr(n, n) and the MATLAB solver returns its starting point
+    def cost(X):
+        rho = np.sum(X**2, axis=1)
+        return 0.5 * np.trace(X.T @ L @ X) + 0.25 * rho @ np.linalg.solve(L, rho)
+
+    costs = [cost(np.linalg.qr(rng.randn(6, 6))[0]) for _ in range(5)]
+    npt.assert_allclose(costs, costs[0])
+    # starting point: eigenvectors of L + diag(L^-1 rho), rho = 1
+    M = L + np.diag(np.linalg.solve(L, np.ones(6)))
+    npt.assert_allclose(M @ evecs, evecs * evals, atol=1e-10)
+    assert np.all(np.diff(evals) >= 0)
+    # it differs from the Euclidean eigendecomposition
+    assert not np.allclose(evals, np.linalg.eigvalsh(L))
+
+
+def test_rasr_eigenspace_option():
+    rng = np.random.RandomState(0)
+    X = rng.randn(120, 64, 4) @ rng.randn(4, 4)
+    euclid = RASR(eigenspace="euclid").fit(X)
+    rasr = RASR(eigenspace="rasr").fit(X)
+    npt.assert_allclose(rasr.mixing_, euclid.mixing_)
+    Xc = rasr.transform(X)
+    assert Xc.shape == X.shape
+    assert np.all(np.isfinite(Xc))
+    with pytest.raises(ValueError, match="eigenspace"):
+        RASR(eigenspace="pga")

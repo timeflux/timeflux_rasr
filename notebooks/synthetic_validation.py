@@ -10,7 +10,8 @@ Because the clean signal is known, we can measure for each method
     contaminated windows (raw data: the artifact-to-EEG ratio);
   * distortion: the same error on artifact-free windows (should stay ~0).
 
-Methods: RASR (this package), and meegkit's ASR (euclid and riemann) as an
+Methods: RASR (this package: Euclidean median and eigendecomposition as in
+ASR, Riemannian median, or the rASR eigenspace), and meegkit's ASR (euclid and riemann) as an
 independent reference implementation of the MATLAB code.
 
 Usage: python notebooks/synthetic_validation.py [n_seeds]
@@ -98,10 +99,12 @@ def run(seed, rate=0.2, amp=8.0, calib_rate=0.0, offset=0, cutoffs=(3, 5, 10)):
     test, test_c, bad = test[:, :n], test_c[:, :n], bad[:n]
 
     out = {"raw": test_c}
-    for metric in ["euclid", "riemann"]:
+    variants = {"euclid": {}, "riemann": dict(metric="riemann"),
+                "rasr-eig": dict(eigenspace="rasr")}
+    for name, kw in variants.items():
         for c in cutoffs:
-            r = RASR(rejection_cutoff=c, metric=metric).fit(epochs(calib_c))
-            out[f"RASR-{metric} c={c}"] = unepoch(r.transform(epochs(test_c)))
+            r = RASR(rejection_cutoff=c, **kw).fit(epochs(calib_c))
+            out[f"RASR-{name} c={c}"] = unepoch(r.transform(epochs(test_c)))
     try:
         from meegkit.asr import ASR
         for method in ["euclid", "riemann"]:

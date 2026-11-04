@@ -45,8 +45,14 @@ class RASR(BaseEstimator, TransformerMixin):
         estimation in _fit_eeg_distribution.
     metric : {'euclid', 'riemann'} (default: 'euclid')
         Median of the calibration covariance matrices: Euclidean geometric
-        median (original ASR) or Riemannian geometric median (rASR, Blum et
-        al. 2019), see `pyriemann.utils.median.median_riemann`.
+        median (as in both the original ASR and the rASR MATLAB code) or
+        Riemannian geometric median, see `pyriemann.utils.median.median_riemann`.
+    eigenspace : {'euclid', 'rasr'} (default: 'euclid')
+        Principal components of the calibration mixing matrix and of each
+        window covariance. 'euclid': eigendecomposition (original ASR).
+        'rasr': the "nonlinear eigenspace" of the rASR MATLAB code (Blum et al.
+        2019, `rasr_nonlinear_eigenspace.m`), computed in closed form, see
+        `rasr_nonlinear_eigh`.
     quantile_range, step_sizes, beta_range :
         additional parameters passed to _fit_eeg_distribution (should be kept as default in general).
 
@@ -69,6 +75,7 @@ class RASR(BaseEstimator, TransformerMixin):
         rejection_cutoff=3.0,
         max_dimension=0.66,
         metric="euclid",
+        eigenspace="euclid",
         **kwargs,
     ):
         """Init."""
@@ -83,6 +90,12 @@ class RASR(BaseEstimator, TransformerMixin):
         if metric not in ("euclid", "riemann"):
             raise ValueError(f"metric should be 'euclid' or 'riemann', got {metric!r}")
         self.metric = metric
+
+        if eigenspace not in ("euclid", "rasr"):
+            raise ValueError(
+                f"eigenspace should be 'euclid' or 'rasr', got {eigenspace!r}"
+            )
+        self.eigenspace = eigenspace
 
         self.args_eeg_distribution, invalids = check_params(
             _fit_eeg_distribution, return_invalids=True, **kwargs
@@ -136,10 +149,7 @@ class RASR(BaseEstimator, TransformerMixin):
         )  # (n_trials, n_channels, n_times)
         covmats = check_array(covmats, allow_nd=True)
 
-        # geometric median
-        # NOTE: while the term geometric median is used, it is NOT riemannian median but euclidian median, i.e.
-        # it might be suboptimal for Symmetric Positive Definite matrices.
-
+        # geometric median: Euclidean (ASR and rASR MATLAB) or Riemannian
         logger.debug("geometric median")
         if self.metric == "riemann":
             covmean = median_riemann(covmats)
@@ -155,8 +165,7 @@ class RASR(BaseEstimator, TransformerMixin):
 
         self.mixing_ = sqrtm(covmean)  # estimate matrix matrix
 
-        # TODO: implement both manifold-aware PCA (rASR) and standard PCA (ASR)
-        evals, evecs = eigh(self.mixing_)  # compute PCA
+        evals, evecs = self._eigh(self.mixing_)  # compute PCA
         indx = np.argsort(evals)  # sort in ascending
         evecs = evecs[:, indx]
         epochs = np.tensordot(epochs, evecs, axes=(2, 0))  # apply PCA to epochs
@@ -182,6 +191,11 @@ class RASR(BaseEstimator, TransformerMixin):
         logger.debug("rASR calibrated")
 
         return self
+
+    def _eigh(self, L):
+        if self.eigenspace == "rasr":
+            return rasr_nonlinear_eigh(L)
+        return eigh(L)
 
     def transform(self, X):
         """Clean signal
@@ -216,8 +230,7 @@ class RASR(BaseEstimator, TransformerMixin):
 
         # TODO: parallelizing the loop for efficiency
         for k in range(Nt):
-            # TODO: HAVE BOTH euclidian PCA and Riemannian PCA (PGA) using pymanopt
-            evals, evecs = eigh(covmats[k, :])  # compute PCA
+            evals, evecs = self._eigh(covmats[k, :])  # compute PCA
             indx = np.argsort(evals)  # sort in ascending
             evecs = evecs[:, indx]
 
@@ -258,8 +271,46 @@ class RASR(BaseEstimator, TransformerMixin):
         return self.transform(X)
 
 
+def rasr_nonlinear_eigh(L, alpha=1.0):
+    """Eigendecomposition used by the rASR MATLAB code, in closed form.
+
+    `rasr_nonlinear_eigenspace(L, k, alpha)` in rASRMatlab (Blum et al. 2019)
+    minimizes the nonlinear eigenvalue cost of Zhao et al. (2015),
+    ``0.5 tr(X^T L X) + alpha/4 rho(X)^T L^-1 rho(X)`` with
+    ``rho(X) = diag(X X^T)``, over the Grassmann manifold Gr(n, k), starting
+    from the leading eigenvectors of ``L + alpha diag(L^-1 rho(X_r))`` for a
+    random orthonormal ``X_r``, and returns that solution with the eigenvalues
+    of the starting matrix.
+
+    rASR always calls it with ``k = n``. Then Gr(n, n) is a single point:
+    every orthonormal n x n matrix has ``rho = 1``, the cost is constant and
+    its Riemannian gradient is zero, so the solver returns its starting point
+    unchanged (this is also why the solver did not converge in
+    timeflux/timeflux_rasr#14). The result is therefore the deterministic
+    eigendecomposition of ``L + alpha diag(L^-1 1)``, computed here without
+    pymanopt.
+
+    Parameters
+    ----------
+    L : ndarray, shape (n, n)
+        Symmetric positive definite matrix.
+    alpha : float (default: 1.0)
+        Weight of the nonlinear term (1 in rASR).
+
+    Returns
+    -------
+    evals : ndarray, shape (n,)
+        Eigenvalues of ``L + alpha diag(L^-1 1)``, ascending.
+    evecs : ndarray, shape (n, n)
+        Corresponding eigenvectors (columns).
+    """
+    L = np.asarray(L)
+    perturbation = np.linalg.solve(L, np.ones(L.shape[0]))
+    return eigh(L + alpha * np.diag(perturbation))
+
+
 def _rms(epochs):
-    """Estimate Root Mean Square Amplitude for each epoch and each electrode.
+    r"""Estimate Root Mean Square Amplitude for each epoch and each electrode.
 
     .. math::
 
