@@ -218,3 +218,6 @@ fabric.properties
 .idea/sonarlint
 
 # End of https://www.gitignore.io/api/jetbrains
+
+# Simulated recording (python examples/simulate_recording.py)
+examples/data/

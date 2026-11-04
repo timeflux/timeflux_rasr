@@ -136,7 +136,9 @@ class RASR(BaseEstimator, TransformerMixin):
         )
 
         if shapeX[0] < 100:
-            raise ValueError("Training requires at least 100 of trials to fit.")
+            raise ValueError(
+                f"Training requires at least 100 of trials to fit (got {shapeX[0]})."
+            )
 
         self.Ne_ = Ne  # save attribute for testing
 
