@@ -1,6 +1,10 @@
 from sklearn.base import BaseEstimator, TransformerMixin
-from pyriemann.utils.covariance import _check_est
-from pyriemann.utils.covariance import covariances
+try:  # pyriemann >= 0.12
+    from pyriemann.geometry.covariance import covariances
+    from pyriemann.geometry.median import median_riemann
+except ImportError:
+    from pyriemann.utils.covariance import covariances
+    from pyriemann.utils.median import median_riemann
 from scipy.linalg import sqrtm, eigh
 import numpy as np
 from scipy.special import gammaincinv
@@ -38,6 +42,10 @@ class RASR(BaseEstimator, TransformerMixin):
     min_clean_fraction : float (default: 0.25)
         Minimum fraction of windows that need to be clean, used for threshold
         estimation in _fit_eeg_distribution.
+    metric : {'euclid', 'riemann'} (default: 'euclid')
+        Median of the calibration covariance matrices: Euclidean geometric
+        median (original ASR) or Riemannian geometric median (rASR, Blum et
+        al. 2019), see `pyriemann.utils.median.median_riemann`.
     quantile_range, step_sizes, beta_range :
         additional parameters passed to _fit_eeg_distribution (should be kept as default in general).
 
@@ -55,16 +63,25 @@ class RASR(BaseEstimator, TransformerMixin):
     """
 
     def __init__(
-        self, estimator="scm", rejection_cutoff=3.0, max_dimension=0.66, **kwargs
+        self,
+        estimator="scm",
+        rejection_cutoff=3.0,
+        max_dimension=0.66,
+        metric="euclid",
+        **kwargs
     ):
         """Init."""
         self.Ne_ = None  # will be initialized during training
 
-        self.estimator = _check_est(estimator)
+        self.estimator = estimator
 
         self.max_dimension = max_dimension
 
         self.rejection_cutoff = rejection_cutoff
+
+        if metric not in ("euclid", "riemann"):
+            raise ValueError(f"metric should be 'euclid' or 'riemann', got {metric!r}")
+        self.metric = metric
 
         self.args_eeg_distribution, invalids = check_params(
             _fit_eeg_distribution, return_invalids=True, **kwargs
@@ -123,15 +140,17 @@ class RASR(BaseEstimator, TransformerMixin):
         # it might be suboptimal for Symmetric Positive Definite matrices.
 
         logger.debug("geometric median")
-        # covmean = mean_covariance(covmats, metric=self.metric_mean)
-        covmean = np.reshape(
-            geometric_median(
-                np.reshape(
-                    covmats, (covmats.shape[0], covmats.shape[1] * covmats.shape[2])
-                )
-            ),
-            (covmats.shape[1], covmats.shape[2]),
-        )
+        if self.metric == "riemann":
+            covmean = median_riemann(covmats)
+        else:
+            covmean = np.reshape(
+                geometric_median(
+                    np.reshape(
+                        covmats, (covmats.shape[0], covmats.shape[1] * covmats.shape[2])
+                    )
+                ),
+                (covmats.shape[1], covmats.shape[2]),
+            )
 
         self.mixing_ = sqrtm(covmean)  # estimate matrix matrix
 
