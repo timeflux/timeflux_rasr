@@ -1,5 +1,5 @@
-"""Utils for visualization of data and comparison
-"""
+"""Utils for visualization of data and comparison"""
+
 import os
 import math
 import numpy as np

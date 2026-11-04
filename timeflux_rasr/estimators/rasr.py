@@ -1,4 +1,5 @@
 from sklearn.base import BaseEstimator, TransformerMixin
+
 try:  # pyriemann >= 0.12
     from pyriemann.geometry.covariance import covariances
     from pyriemann.geometry.median import median_riemann
@@ -68,7 +69,7 @@ class RASR(BaseEstimator, TransformerMixin):
         rejection_cutoff=3.0,
         max_dimension=0.66,
         metric="euclid",
-        **kwargs
+        **kwargs,
     ):
         """Init."""
         self.Ne_ = None  # will be initialized during training
@@ -275,7 +276,7 @@ def _rms(epochs):
         Root Mean Square Amplitude
     """
 
-    return np.sqrt(np.mean(epochs ** 2, axis=1))
+    return np.sqrt(np.mean(epochs**2, axis=1))
 
 
 def _fit_eeg_distribution(
@@ -474,6 +475,6 @@ def _fit_eeg_distribution(
     beta = opt_beta
 
     # calculate the distribution's standard deviation from alpha and beta
-    sig = np.sqrt((alpha ** 2) * gamma(3 / beta) / gamma(1 / beta))
+    sig = np.sqrt((alpha**2) * gamma(3 / beta) / gamma(1 / beta))
 
     return mu, sig, alpha, beta
