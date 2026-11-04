@@ -32,6 +32,8 @@ jobs:
         pip install black==26.10.1
         black --check $PACKAGE
     - name: Test documentation
+      # once is enough; Sphinx >= 8.2 (Python >= 3.11) can suppress autoapi's toctree warning
+      if: matrix.python-version == '3.12'
       run: |
         cd doc
         make html
