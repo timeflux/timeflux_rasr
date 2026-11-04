@@ -2,31 +2,31 @@
 
 from glob import glob
 import os
-import getpass
+
+#: Environment variable giving the folder of the rASR comparison data.
+DATA_ENV = "TIMEFLUX_RASR_DATA"
 
 
 class Config:
-    """Load user-dependent variable and path"""
+    """Paths of the rASR comparison data (raw, filtered, MATLAB outputs).
 
-    def __init__(self, username=None):
-        # generate attribute
-        self.known_users = {
-            "raph": "/Users/raph/OMIND_SERVER/DATA/rASR Data/",
-            "louis": "/Users/louis/Dropbox/rASR Data/",
-            "sylchev": "/Users/sylchev/Dropbox/rASR Data/",
-        }
+    Parameters
+    ----------
+    data_path : str | None
+        Folder holding the ``raw``, ``filtered``, ``calibration data``,
+        ``original ASR out`` and ``Riemannian ASR out`` subfolders. Defaults
+        to the ``TIMEFLUX_RASR_DATA`` environment variable.
+    """
 
-        if username is None:
-            self.username = getpass.getuser()
-        else:
-            self.username = username
-
-        if self.username in self.known_users.keys():
-            self.data_path = self.known_users[self.username]
-        else:
-            raise KeyError(
-                username + ": User path not defined, please add path in utils.config."
+    def __init__(self, data_path=None):
+        if data_path is None:
+            data_path = os.environ.get(DATA_ENV)
+        if not data_path:
+            raise ValueError(
+                f"No data folder: pass data_path or set the {DATA_ENV} "
+                "environment variable."
             )
+        self.data_path = data_path
 
         self.results_folder = os.path.join(self.data_path, "results")
 
