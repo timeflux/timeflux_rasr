@@ -1,0 +1,65 @@
+# Clean a simulated EEG recording in real time with RASR.
+#
+#   python examples/simulate_recording.py   # writes examples/data/simulated.hdf5
+#   timeflux -d examples/simulated.yaml     # replays it, cleans it, saves the result
+#
+# What happens, node by node:
+#   replay  reads the recording and sends it as if it came from an amplifier,
+#           4 times faster than real time (speed: 4), in small chunks;
+#   window  cuts the stream into 0.5 s windows (125 samples at 250 Hz);
+#   rasr    stores the windows between the 'calibration_begins' and
+#           'calibration_ends' events, fits RASR on them, then cleans every
+#           new window;
+#   save    writes the cleaned signal (and the raw one) to examples/results/.
+
+graphs:
+  - id: rasr_simulated
+    rate: 20  # how many times per second the graph runs
+    nodes:
+      - id: replay
+        module: timeflux.nodes.hdf5
+        class: Replay
+        params:
+          filename: data/simulated.hdf5  # relative to this file
+          keys: [/eeg/raw, /events]
+          speed: 4
+      - id: window
+        module: timeflux.nodes.window
+        class: Slide
+        params:
+          length: 0.5  # seconds
+          step: 0.5    # no overlap
+          rate: 250    # sampling rate of the recording, in Hz
+      - id: rasr
+        module: timeflux.nodes.ml
+        class: Pipeline
+        params:
+          mode: transform
+          meta_label: null  # unsupervised: no labels needed
+          event_start_accumulation: calibration_begins
+          event_stop_accumulation: calibration_ends
+          event_start_training: calibration_ends
+          steps:
+            - module: timeflux_rasr.estimators.rasr
+              class: RASR
+              args:
+                rejection_cutoff: 5
+      - id: save
+        module: timeflux.nodes.hdf5
+        class: Save
+        params:
+          path: results
+          filename: simulated_cleaned.hdf5
+    edges:
+      - source: replay:eeg_raw
+        target: window
+      - source: replay:events
+        target: rasr:events
+      - source: window:*
+        target: rasr:training
+      - source: window:*
+        target: rasr
+      - source: replay:eeg_raw
+        target: save:raw
+      - source: rasr:*
+        target: save:cleaned
