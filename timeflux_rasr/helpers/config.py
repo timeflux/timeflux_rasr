@@ -1,5 +1,5 @@
-""" Configuration methods for rASR and Timeflux loading/testing
-"""
+"""Configuration methods for rASR and Timeflux loading/testing"""
+
 from glob import glob
 import os
 import getpass
