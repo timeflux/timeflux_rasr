@@ -212,23 +212,26 @@ def pandas_to_mne(
     return raw, event_id, picks
 
 
-from datetime import datetime
-
-
 def time_index_to_float_index(df, inplace=False):
-    """Convert a dataframe float indices to `datetime64['us']` indices."""
+    """Convert a dataframe datetime indices to float indices (seconds since epoch).
+
+    Missing timestamps (NaT) become NaN.
+    """
     if not inplace:
         df = df.copy()
-    df.index = df.index.map(lambda d: d.timestamp())
+    df.index = (pd.DatetimeIndex(df.index) - pd.Timestamp(0)) / pd.Timedelta(seconds=1)
     return df
 
 
 def float_index_to_time_index(df, inplace=False):
-    """Convert a dataframe float indices to `datetime64['us']` indices."""
+    """Convert a dataframe float indices (seconds since epoch) to `datetime64['us']` indices.
+
+    Missing timestamps (NaN, e.g. from pyxdf) become NaT instead of raising
+    ``ValueError: Invalid value NaN`` (issue #16).
+    """
     if not inplace:
         df = df.copy()
-    df.index = df.index.map(datetime.utcfromtimestamp)
-    df.index = pd.to_datetime(df.index, unit="us", utc=False)
+    df.index = pd.to_datetime(df.index, unit="s").as_unit("us")
     return df
 
 
